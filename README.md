@@ -1,5 +1,5 @@
-# OrganicStupidity
-Pacman capture the flag agent  
+# Team Organic Stupidity
+A capture the flag agent by Jared Jensen and Chris Gradwohl, University of California, Santa Cruz
 
 
 ## Contest: Pacman Capture the Flag
