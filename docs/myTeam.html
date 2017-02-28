@@ -1,0 +1,99 @@
+<html>
+  <head>
+  <title>myTeam.py</title>
+  </head>
+  <body>
+  <h3>myTeam.py (<a href="../myTeam.py">original</a>)</h3>
+  <hr>
+  <pre>
+<span style="color: green; font-style: italic"># myTeam.py
+# ---------
+# Licensing Information: Please do not distribute or publish solutions to this
+# project. You are free to use and extend these projects for educational
+# purposes. The Pacman AI projects were developed at UC Berkeley, primarily by
+# John DeNero (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
+# For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
+
+</span><span style="color: blue; font-weight: bold">from </span>captureAgents <span style="color: blue; font-weight: bold">import </span>CaptureAgent
+<span style="color: blue; font-weight: bold">import </span>random<span style="font-weight: bold">, </span>time<span style="font-weight: bold">, </span>util
+<span style="color: blue; font-weight: bold">from </span>game <span style="color: blue; font-weight: bold">import </span>Directions
+<span style="color: blue; font-weight: bold">import </span>game
+
+<span style="color: green; font-style: italic">#################
+# Team creation #
+#################
+
+</span><span style="color: blue; font-weight: bold">def </span>createTeam<span style="font-weight: bold">(</span>firstIndex<span style="font-weight: bold">, </span>secondIndex<span style="font-weight: bold">, </span>isRed<span style="font-weight: bold">,
+               </span>first <span style="font-weight: bold">= </span><span style="color: red">'DummyAgent'</span><span style="font-weight: bold">, </span>second <span style="font-weight: bold">= </span><span style="color: red">'DummyAgent'</span><span style="font-weight: bold">):
+  </span><span style="color: darkred">"""
+  This function should return a list of two agents that will form the
+  team, initialized using firstIndex and secondIndex as their agent
+  index numbers.  isRed is True if the red team is being created, and
+  will be False if the blue team is being created.
+
+  As a potentially helpful development aid, this function can take
+  additional string-valued keyword arguments ("first" and "second" are
+  such arguments in the case of this function), which will come from
+  the --redOpts and --blueOpts command-line arguments to capture.py.
+  For the nightly contest, however, your team will be created without
+  any extra arguments, so you should make sure that the default
+  behavior is what you want for the nightly contest.
+  """
+
+  </span><span style="color: green; font-style: italic"># The following line is an example only; feel free to change it.
+  </span><span style="color: blue; font-weight: bold">return </span><span style="font-weight: bold">[</span>eval<span style="font-weight: bold">(</span>first<span style="font-weight: bold">)(</span>firstIndex<span style="font-weight: bold">), </span>eval<span style="font-weight: bold">(</span>second<span style="font-weight: bold">)(</span>secondIndex<span style="font-weight: bold">)]
+
+</span><span style="color: green; font-style: italic">##########
+# Agents #
+##########
+
+</span><span style="color: blue; font-weight: bold">class </span>DummyAgent<span style="font-weight: bold">(</span>CaptureAgent<span style="font-weight: bold">):
+  </span><span style="color: darkred">"""
+  A Dummy agent to serve as an example of the necessary agent structure.
+  You should look at baselineTeam.py for more details about how to
+  create an agent as this is the bare minimum.
+  """
+
+  </span><span style="color: blue; font-weight: bold">def </span>registerInitialState<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">):
+    </span><span style="color: darkred">"""
+    This method handles the initial setup of the
+    agent to populate useful fields (such as what team
+    we're on). 
+    
+    A distanceCalculator instance caches the maze distances
+    between each pair of positions, so your agents can use:
+    self.distancer.getDistance(p1, p2)
+
+    IMPORTANT: This method may run for at most 15 seconds.
+    """
+
+    ''' 
+    Make sure you do not delete the following line. If you would like to
+    use Manhattan distances instead of maze distances in order to save
+    on initialization time, please take a look at
+    CaptureAgent.registerInitialState in captureAgents.py. 
+    '''
+    </span>CaptureAgent<span style="font-weight: bold">.</span>registerInitialState<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">)
+
+    </span><span style="color: darkred">''' 
+    Your initialization code goes here, if you need any.
+    '''
+
+
+  </span><span style="color: blue; font-weight: bold">def </span>chooseAction<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">):
+    </span><span style="color: darkred">"""
+    Picks among actions randomly.
+    """
+    </span>actions <span style="font-weight: bold">= </span>gameState<span style="font-weight: bold">.</span>getLegalActions<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>index<span style="font-weight: bold">)
+
+    </span><span style="color: darkred">''' 
+    You should change this in your own agent.
+    '''
+
+    </span><span style="color: blue; font-weight: bold">return </span>random<span style="font-weight: bold">.</span>choice<span style="font-weight: bold">(</span>actions<span style="font-weight: bold">)
+
+</span>
+  </pre>
+  </body>
+  </html>
+  

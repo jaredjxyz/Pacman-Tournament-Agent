@@ -1,0 +1,53 @@
+<html>
+  <head>
+  <title>generateTournamentLayouts.py</title>
+  </head>
+  <body>
+  <h3>generateTournamentLayouts.py (<a href="../generateTournamentLayouts.py">original</a>)</h3>
+  <hr>
+  <pre>
+<span style="color: green; font-style: italic"># generateTournamentLayouts.py
+# ----------------------------
+# Licensing Information: Please do not distribute or publish solutions to this
+# project. You are free to use and extend these projects for educational
+# purposes. The Pacman AI projects were developed at UC Berkeley, primarily by
+# John DeNero (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
+# For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
+
+</span><span style="color: blue; font-weight: bold">import </span>sys<span style="font-weight: bold">, </span>random
+
+<span style="color: blue; font-weight: bold">import </span>mazeGenerator
+
+<span style="color: darkred">"""
+This is a helper file which generates the random seeds for the map
+layouts for the nightly tournament.
+"""
+
+</span><span style="color: blue; font-weight: bold">if </span>__name__<span style="font-weight: bold">==</span><span style="color: red">"__main__"</span><span style="font-weight: bold">:
+  </span>num <span style="font-weight: bold">= </span><span style="color: red">9
+  </span><span style="color: blue; font-weight: bold">if </span>len<span style="font-weight: bold">(</span>sys<span style="font-weight: bold">.</span>argv<span style="font-weight: bold">) &gt; </span><span style="color: red">1</span><span style="font-weight: bold">: </span><span style="color: green; font-style: italic"># command line argument: number of maps to generate
+    </span>num <span style="font-weight: bold">= </span>int<span style="font-weight: bold">(</span>sys<span style="font-weight: bold">.</span>argv<span style="font-weight: bold">[</span><span style="color: red">1</span><span style="font-weight: bold">])
+
+  </span>seedsfile <span style="font-weight: bold">= </span><span style="color: red">'../driver/SEEDS'
+  </span>with open<span style="font-weight: bold">(</span>seedsfile<span style="font-weight: bold">,</span><span style="color: red">'w'</span><span style="font-weight: bold">) </span>as out<span style="font-weight: bold">:
+    </span><span style="color: blue; font-weight: bold">pass
+
+  for </span>i <span style="color: blue; font-weight: bold">in </span>range<span style="font-weight: bold">(</span>num<span style="font-weight: bold">):
+    </span>seed <span style="font-weight: bold">= </span>random<span style="font-weight: bold">.</span>randint<span style="font-weight: bold">(</span><span style="color: red">0</span><span style="font-weight: bold">,</span><span style="color: red">99999999</span><span style="font-weight: bold">)
+    </span>layout <span style="font-weight: bold">= </span><span style="color: red">'layouts/random%08dCapture.lay' </span><span style="font-weight: bold">% </span>seed
+    <span style="color: blue; font-weight: bold">print </span><span style="color: red">'Generating random layout in %s' </span><span style="font-weight: bold">% </span>layout
+    with open<span style="font-weight: bold">(</span>layout<span style="font-weight: bold">, </span><span style="color: red">'w'</span><span style="font-weight: bold">) </span>as out<span style="font-weight: bold">:
+      </span>maze <span style="font-weight: bold">= </span>mazeGenerator<span style="font-weight: bold">.</span>generateMaze<span style="font-weight: bold">(</span>seed<span style="font-weight: bold">)
+      </span>out<span style="font-weight: bold">.</span>write<span style="font-weight: bold">(</span>maze<span style="font-weight: bold">)
+      </span><span style="color: blue; font-weight: bold">print </span>maze
+
+    with open<span style="font-weight: bold">(</span>seedsfile<span style="font-weight: bold">, </span><span style="color: red">'a'</span><span style="font-weight: bold">) </span>as out<span style="font-weight: bold">:
+      </span>out<span style="font-weight: bold">.</span>write<span style="font-weight: bold">(</span><span style="color: red">"%d\n"</span><span style="font-weight: bold">%</span>seed<span style="font-weight: bold">)
+
+
+
+</span>
+  </pre>
+  </body>
+  </html>
+  

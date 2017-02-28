@@ -1,0 +1,167 @@
+<html>
+  <head>
+  <title>baselineTeam.py</title>
+  </head>
+  <body>
+  <h3>baselineTeam.py (<a href="../baselineTeam.py">original</a>)</h3>
+  <hr>
+  <pre>
+<span style="color: green; font-style: italic"># baselineTeam.py
+# ---------------
+# Licensing Information: Please do not distribute or publish solutions to this
+# project. You are free to use and extend these projects for educational
+# purposes. The Pacman AI projects were developed at UC Berkeley, primarily by
+# John DeNero (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
+# For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
+
+</span><span style="color: blue; font-weight: bold">from </span>captureAgents <span style="color: blue; font-weight: bold">import </span>CaptureAgent
+<span style="color: blue; font-weight: bold">import </span>distanceCalculator
+<span style="color: blue; font-weight: bold">import </span>random<span style="font-weight: bold">, </span>time<span style="font-weight: bold">, </span>util
+<span style="color: blue; font-weight: bold">from </span>game <span style="color: blue; font-weight: bold">import </span>Directions
+<span style="color: blue; font-weight: bold">import </span>game
+<span style="color: blue; font-weight: bold">from </span>util <span style="color: blue; font-weight: bold">import </span>nearestPoint
+
+<span style="color: green; font-style: italic">#################
+# Team creation #
+#################
+
+</span><span style="color: blue; font-weight: bold">def </span>createTeam<span style="font-weight: bold">(</span>firstIndex<span style="font-weight: bold">, </span>secondIndex<span style="font-weight: bold">, </span>isRed<span style="font-weight: bold">,
+               </span>first <span style="font-weight: bold">= </span><span style="color: red">'OffensiveReflexAgent'</span><span style="font-weight: bold">, </span>second <span style="font-weight: bold">= </span><span style="color: red">'DefensiveReflexAgent'</span><span style="font-weight: bold">):
+  </span><span style="color: darkred">"""
+  This function should return a list of two agents that will form the
+  team, initialized using firstIndex and secondIndex as their agent
+  index numbers.  isRed is True if the red team is being created, and
+  will be False if the blue team is being created.
+
+  As a potentially helpful development aid, this function can take
+  additional string-valued keyword arguments ("first" and "second" are
+  such arguments in the case of this function), which will come from
+  the --redOpts and --blueOpts command-line arguments to capture.py.
+  For the nightly contest, however, your team will be created without
+  any extra arguments, so you should make sure that the default
+  behavior is what you want for the nightly contest.
+  """
+  </span><span style="color: blue; font-weight: bold">return </span><span style="font-weight: bold">[</span>eval<span style="font-weight: bold">(</span>first<span style="font-weight: bold">)(</span>firstIndex<span style="font-weight: bold">), </span>eval<span style="font-weight: bold">(</span>second<span style="font-weight: bold">)(</span>secondIndex<span style="font-weight: bold">)]
+
+</span><span style="color: green; font-style: italic">##########
+# Agents #
+##########
+
+</span><span style="color: blue; font-weight: bold">class </span>ReflexCaptureAgent<span style="font-weight: bold">(</span>CaptureAgent<span style="font-weight: bold">):
+  </span><span style="color: darkred">"""
+  A base class for reflex agents that chooses score-maximizing actions
+  """
+  </span><span style="color: blue; font-weight: bold">def </span>chooseAction<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">):
+    </span><span style="color: darkred">"""
+    Picks among the actions with the highest Q(s,a).
+    """
+    </span>actions <span style="font-weight: bold">= </span>gameState<span style="font-weight: bold">.</span>getLegalActions<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>index<span style="font-weight: bold">)
+
+    </span><span style="color: green; font-style: italic"># You can profile your evaluation time by uncommenting these lines
+    # start = time.time()
+    </span>values <span style="font-weight: bold">= [</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>evaluate<span style="font-weight: bold">(</span>gameState<span style="font-weight: bold">, </span>a<span style="font-weight: bold">) </span><span style="color: blue; font-weight: bold">for </span>a <span style="color: blue; font-weight: bold">in </span>actions<span style="font-weight: bold">]
+    </span><span style="color: green; font-style: italic"># print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
+
+    </span>maxValue <span style="font-weight: bold">= </span>max<span style="font-weight: bold">(</span>values<span style="font-weight: bold">)
+    </span>bestActions <span style="font-weight: bold">= [</span>a <span style="color: blue; font-weight: bold">for </span>a<span style="font-weight: bold">, </span>v <span style="color: blue; font-weight: bold">in </span>zip<span style="font-weight: bold">(</span>actions<span style="font-weight: bold">, </span>values<span style="font-weight: bold">) </span><span style="color: blue; font-weight: bold">if </span>v <span style="font-weight: bold">== </span>maxValue<span style="font-weight: bold">]
+
+    </span><span style="color: blue; font-weight: bold">return </span>random<span style="font-weight: bold">.</span>choice<span style="font-weight: bold">(</span>bestActions<span style="font-weight: bold">)
+
+  </span><span style="color: blue; font-weight: bold">def </span>getSuccessor<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">):
+    </span><span style="color: darkred">"""
+    Finds the next successor which is a grid position (location tuple).
+    """
+    </span>successor <span style="font-weight: bold">= </span>gameState<span style="font-weight: bold">.</span>generateSuccessor<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>index<span style="font-weight: bold">, </span>action<span style="font-weight: bold">)
+    </span>pos <span style="font-weight: bold">= </span>successor<span style="font-weight: bold">.</span>getAgentState<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>index<span style="font-weight: bold">).</span>getPosition<span style="font-weight: bold">()
+    </span><span style="color: blue; font-weight: bold">if </span>pos <span style="font-weight: bold">!= </span>nearestPoint<span style="font-weight: bold">(</span>pos<span style="font-weight: bold">):
+      </span><span style="color: green; font-style: italic"># Only half a grid position was covered
+      </span><span style="color: blue; font-weight: bold">return </span>successor<span style="font-weight: bold">.</span>generateSuccessor<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>index<span style="font-weight: bold">, </span>action<span style="font-weight: bold">)
+    </span><span style="color: blue; font-weight: bold">else</span><span style="font-weight: bold">:
+      </span><span style="color: blue; font-weight: bold">return </span>successor
+
+  <span style="color: blue; font-weight: bold">def </span>evaluate<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">):
+    </span><span style="color: darkred">"""
+    Computes a linear combination of features and feature weights
+    """
+    </span>features <span style="font-weight: bold">= </span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getFeatures<span style="font-weight: bold">(</span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">)
+    </span>weights <span style="font-weight: bold">= </span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getWeights<span style="font-weight: bold">(</span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">)
+    </span><span style="color: blue; font-weight: bold">return </span>features <span style="font-weight: bold">* </span>weights
+
+  <span style="color: blue; font-weight: bold">def </span>getFeatures<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">):
+    </span><span style="color: darkred">"""
+    Returns a counter of features for the state
+    """
+    </span>features <span style="font-weight: bold">= </span>util<span style="font-weight: bold">.</span>Counter<span style="font-weight: bold">()
+    </span>successor <span style="font-weight: bold">= </span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getSuccessor<span style="font-weight: bold">(</span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">)
+    </span>features<span style="font-weight: bold">[</span><span style="color: red">'successorScore'</span><span style="font-weight: bold">] = </span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getScore<span style="font-weight: bold">(</span>successor<span style="font-weight: bold">)
+    </span><span style="color: blue; font-weight: bold">return </span>features
+
+  <span style="color: blue; font-weight: bold">def </span>getWeights<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">):
+    </span><span style="color: darkred">"""
+    Normally, weights do not depend on the gamestate.  They can be either
+    a counter or a dictionary.
+    """
+    </span><span style="color: blue; font-weight: bold">return </span><span style="font-weight: bold">{</span><span style="color: red">'successorScore'</span><span style="font-weight: bold">: </span><span style="color: red">1.0</span><span style="font-weight: bold">}
+
+</span><span style="color: blue; font-weight: bold">class </span>OffensiveReflexAgent<span style="font-weight: bold">(</span>ReflexCaptureAgent<span style="font-weight: bold">):
+  </span><span style="color: darkred">"""
+  A reflex agent that seeks food. This is an agent
+  we give you to get an idea of what an offensive agent might look like,
+  but it is by no means the best or only way to build an offensive agent.
+  """
+  </span><span style="color: blue; font-weight: bold">def </span>getFeatures<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">):
+    </span>features <span style="font-weight: bold">= </span>util<span style="font-weight: bold">.</span>Counter<span style="font-weight: bold">()
+    </span>successor <span style="font-weight: bold">= </span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getSuccessor<span style="font-weight: bold">(</span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">)
+    </span>features<span style="font-weight: bold">[</span><span style="color: red">'successorScore'</span><span style="font-weight: bold">] = </span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getScore<span style="font-weight: bold">(</span>successor<span style="font-weight: bold">)
+
+    </span><span style="color: green; font-style: italic"># Compute distance to the nearest food
+    </span>foodList <span style="font-weight: bold">= </span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getFood<span style="font-weight: bold">(</span>successor<span style="font-weight: bold">).</span>asList<span style="font-weight: bold">()
+    </span><span style="color: blue; font-weight: bold">if </span>len<span style="font-weight: bold">(</span>foodList<span style="font-weight: bold">) &gt; </span><span style="color: red">0</span><span style="font-weight: bold">: </span><span style="color: green; font-style: italic"># This should always be True,  but better safe than sorry
+      </span>myPos <span style="font-weight: bold">= </span>successor<span style="font-weight: bold">.</span>getAgentState<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>index<span style="font-weight: bold">).</span>getPosition<span style="font-weight: bold">()
+      </span>minDistance <span style="font-weight: bold">= </span>min<span style="font-weight: bold">([</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getMazeDistance<span style="font-weight: bold">(</span>myPos<span style="font-weight: bold">, </span>food<span style="font-weight: bold">) </span><span style="color: blue; font-weight: bold">for </span>food <span style="color: blue; font-weight: bold">in </span>foodList<span style="font-weight: bold">])
+      </span>features<span style="font-weight: bold">[</span><span style="color: red">'distanceToFood'</span><span style="font-weight: bold">] = </span>minDistance
+    <span style="color: blue; font-weight: bold">return </span>features
+
+  <span style="color: blue; font-weight: bold">def </span>getWeights<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">):
+    </span><span style="color: blue; font-weight: bold">return </span><span style="font-weight: bold">{</span><span style="color: red">'successorScore'</span><span style="font-weight: bold">: </span><span style="color: red">100</span><span style="font-weight: bold">, </span><span style="color: red">'distanceToFood'</span><span style="font-weight: bold">: -</span><span style="color: red">1</span><span style="font-weight: bold">}
+
+</span><span style="color: blue; font-weight: bold">class </span>DefensiveReflexAgent<span style="font-weight: bold">(</span>ReflexCaptureAgent<span style="font-weight: bold">):
+  </span><span style="color: darkred">"""
+  A reflex agent that keeps its side Pacman-free. Again,
+  this is to give you an idea of what a defensive agent
+  could be like.  It is not the best or only way to make
+  such an agent.
+  """
+
+  </span><span style="color: blue; font-weight: bold">def </span>getFeatures<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">):
+    </span>features <span style="font-weight: bold">= </span>util<span style="font-weight: bold">.</span>Counter<span style="font-weight: bold">()
+    </span>successor <span style="font-weight: bold">= </span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getSuccessor<span style="font-weight: bold">(</span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">)
+
+    </span>myState <span style="font-weight: bold">= </span>successor<span style="font-weight: bold">.</span>getAgentState<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>index<span style="font-weight: bold">)
+    </span>myPos <span style="font-weight: bold">= </span>myState<span style="font-weight: bold">.</span>getPosition<span style="font-weight: bold">()
+
+    </span><span style="color: green; font-style: italic"># Computes whether we're on defense (1) or offense (0)
+    </span>features<span style="font-weight: bold">[</span><span style="color: red">'onDefense'</span><span style="font-weight: bold">] = </span><span style="color: red">1
+    </span><span style="color: blue; font-weight: bold">if </span>myState<span style="font-weight: bold">.</span>isPacman<span style="font-weight: bold">: </span>features<span style="font-weight: bold">[</span><span style="color: red">'onDefense'</span><span style="font-weight: bold">] = </span><span style="color: red">0
+
+    </span><span style="color: green; font-style: italic"># Computes distance to invaders we can see
+    </span>enemies <span style="font-weight: bold">= [</span>successor<span style="font-weight: bold">.</span>getAgentState<span style="font-weight: bold">(</span>i<span style="font-weight: bold">) </span><span style="color: blue; font-weight: bold">for </span>i <span style="color: blue; font-weight: bold">in </span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getOpponents<span style="font-weight: bold">(</span>successor<span style="font-weight: bold">)]
+    </span>invaders <span style="font-weight: bold">= [</span>a <span style="color: blue; font-weight: bold">for </span>a <span style="color: blue; font-weight: bold">in </span>enemies <span style="color: blue; font-weight: bold">if </span>a<span style="font-weight: bold">.</span>isPacman <span style="color: blue; font-weight: bold">and </span>a<span style="font-weight: bold">.</span>getPosition<span style="font-weight: bold">() != </span><span style="color: blue">None</span><span style="font-weight: bold">]
+    </span>features<span style="font-weight: bold">[</span><span style="color: red">'numInvaders'</span><span style="font-weight: bold">] = </span>len<span style="font-weight: bold">(</span>invaders<span style="font-weight: bold">)
+    </span><span style="color: blue; font-weight: bold">if </span>len<span style="font-weight: bold">(</span>invaders<span style="font-weight: bold">) &gt; </span><span style="color: red">0</span><span style="font-weight: bold">:
+      </span>dists <span style="font-weight: bold">= [</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>getMazeDistance<span style="font-weight: bold">(</span>myPos<span style="font-weight: bold">, </span>a<span style="font-weight: bold">.</span>getPosition<span style="font-weight: bold">()) </span><span style="color: blue; font-weight: bold">for </span>a <span style="color: blue; font-weight: bold">in </span>invaders<span style="font-weight: bold">]
+      </span>features<span style="font-weight: bold">[</span><span style="color: red">'invaderDistance'</span><span style="font-weight: bold">] = </span>min<span style="font-weight: bold">(</span>dists<span style="font-weight: bold">)
+
+    </span><span style="color: blue; font-weight: bold">if </span>action <span style="font-weight: bold">== </span>Directions<span style="font-weight: bold">.</span>STOP<span style="font-weight: bold">: </span>features<span style="font-weight: bold">[</span><span style="color: red">'stop'</span><span style="font-weight: bold">] = </span><span style="color: red">1
+    </span>rev <span style="font-weight: bold">= </span>Directions<span style="font-weight: bold">.</span>REVERSE<span style="font-weight: bold">[</span>gameState<span style="font-weight: bold">.</span>getAgentState<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">.</span>index<span style="font-weight: bold">).</span>configuration<span style="font-weight: bold">.</span>direction<span style="font-weight: bold">]
+    </span><span style="color: blue; font-weight: bold">if </span>action <span style="font-weight: bold">== </span>rev<span style="font-weight: bold">: </span>features<span style="font-weight: bold">[</span><span style="color: red">'reverse'</span><span style="font-weight: bold">] = </span><span style="color: red">1
+
+    </span><span style="color: blue; font-weight: bold">return </span>features
+
+  <span style="color: blue; font-weight: bold">def </span>getWeights<span style="font-weight: bold">(</span><span style="color: blue">self</span><span style="font-weight: bold">, </span>gameState<span style="font-weight: bold">, </span>action<span style="font-weight: bold">):
+    </span><span style="color: blue; font-weight: bold">return </span><span style="font-weight: bold">{</span><span style="color: red">'numInvaders'</span><span style="font-weight: bold">: -</span><span style="color: red">1000</span><span style="font-weight: bold">, </span><span style="color: red">'onDefense'</span><span style="font-weight: bold">: </span><span style="color: red">100</span><span style="font-weight: bold">, </span><span style="color: red">'invaderDistance'</span><span style="font-weight: bold">: -</span><span style="color: red">10</span><span style="font-weight: bold">, </span><span style="color: red">'stop'</span><span style="font-weight: bold">: -</span><span style="color: red">100</span><span style="font-weight: bold">, </span><span style="color: red">'reverse'</span><span style="font-weight: bold">: -</span><span style="color: red">2</span><span style="font-weight: bold">}
+</span>
+  </pre>
+  </body>
+  </html>
+  
