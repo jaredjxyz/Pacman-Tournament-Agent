@@ -1,5 +1,7 @@
 # Team Organic Stupidity
-### Jared Jensen and Chris Gradwohl, University of California, Santa Cruz
+### Jared Jensen and Chris Gradwohl
+### CMPS140: Artificial Intelligence  
+### University of California, Santa Cruz
 
 
 ## Contest: Pacman Capture the Flag
