@@ -63,7 +63,7 @@ class DummyAgent(CaptureAgent):
         self.weights = util.Counter()
 
         self.learning_rate = .2
-        self.exploration_rate = .05
+        self.exploration_rate = .5
         self.discount_factor = .99
         self.training = True
 
@@ -187,6 +187,7 @@ class DummyAgent(CaptureAgent):
         x, y = gameState.getAgentPosition(self.index)
         dx, dy = Actions.directionToVector(action) if action is not None else (0, 0)
         next_x, next_y = x + dx, y + dy
+        nextGameState = gameState.generateSuccessor(self.index, action)
 
         walls = gameState.getWalls()
         mazeSize = walls.width + walls.height
@@ -198,6 +199,7 @@ class DummyAgent(CaptureAgent):
         features['bias'] = 1.0
         features['score'] = self.getScore(gameState)
         features['closest_food'] = closestFood / mazeSize
+        features['closest_food_aStar'] = self.aStarSearch(nextGameState, (next_x, next_y), self.getFood(nextGameState).asList())
 
         # Distance away from opponents
         agentDistances = gameState.getAgentDistances()
@@ -215,3 +217,29 @@ class DummyAgent(CaptureAgent):
             return weights
         else:
             return self.weights
+
+    # ## A Star Search ## #
+
+    def aStarSearch(self, gameState, point1, goalPoints):
+        """
+        Search the node that has the lowest combined cost and heuristic first.
+        """
+
+        start = point1
+
+        # Values are stored a 3-tuples, (Position, Path, TotalCost, )
+        queue = util.PriorityQueueWithFunction(lambda point: point[2] + self.getMazeDistance(point1, point[0]))
+        currentPosition, currentPath, currentTotal = start, [], 0
+        visited = set([currentPosition])
+        while currentPosition not in goalPoints:
+            possibleActions = gameState.getLegalActions(self.index)
+            successorStates = [(gameState.generateSuccessor(self.index, action).getAgentPosition(self.index), action, 1) for action in possibleActions]
+
+            for state, action, cost in successorStates:
+
+                visited.add(state)
+                queue.push((state, currentPath + [action], currentTotal + cost))
+            currentState, currentPath, currentTotal = queue.pop()
+
+        # Check heuristic for consistency #2
+        return currentPath
