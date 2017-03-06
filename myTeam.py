@@ -5,11 +5,12 @@
 # purposes. The Pacman AI projects were developed at UC Berkeley, primarily by
 # John DeNero (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
 # For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
-
+from __future__ import division
 from captureAgents import CaptureAgent
 import random, time, util
-from game import Directions
+from game import Directions, Actions
 import game
+
 
 #################
 # Team creation #
@@ -17,7 +18,7 @@ import game
 
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='DummyAgent', second='DummyAgent'):
+               first='DummyAgent', second='DummyAgent', **kwargs):
     """
     This function should return a list of two agents that will form the
     team, initialized using firstIndex and secondIndex as their agent
@@ -49,6 +50,21 @@ class DummyAgent(CaptureAgent):
     create an agent as this is the bare minimum.
     """
 
+    # ### The below code is going to be called by the game ### #
+
+    def __init__(self, *args, **kwargs):
+        '''
+        Initialize agent
+        '''
+        CaptureAgent.__init__(self, *args, **kwargs)
+
+        # Initialize all weights
+        self.weights = util.Counter()
+
+        self.learning_rate = .2
+        self.exploration_rate = .05
+        self.discount_factor = .99
+
     def registerInitialState(self, gameState):
         """
         This method handles the initial setup of the
@@ -70,18 +86,124 @@ class DummyAgent(CaptureAgent):
         '''
         CaptureAgent.registerInitialState(self, gameState)
 
-        '''
-        Your initialization code goes here, if you need any.
-        '''
+        # Your initialization code goes here, if you need any.
+        self.action_list = [None]
+        self.initial_food = self.getFood(gameState).count()
+        self.initial_defending_food = self.getFoodYouAreDefending(gameState).count()
 
     def chooseAction(self, gameState):
         """
         Picks among actions randomly.
         """
-        actions = gameState.getLegalActions(self.index)
 
+        # Observe the current state, and update our weights based on the current state and any reward we might get
+        #
+
+        previousState = self.getPreviousObservation()
+        previousAction = self.getPreviousAction()
+        reward = self.getReward(gameState)
+        self.update(previousState, previousAction, gameState, reward)
+
+        if random.random() < self.exploration_rate:
+            action = random.choice(gameState.getLegalActions(self.index))
+        else:
+            action = self.getPolicy(gameState)
+
+        print 'Features', self.getFeatures(gameState, action)
+        print
+        print 'Weights', self.weights
+        print
+        print
+
+        return action
+
+    # ### The below code just belongs to us ### #
+
+    def getReward(self, gameState):
+        if self.getPreviousObservation() is None:
+            return 0
+
+        reward = 0
+        previousState = self.getPreviousObservation()
+
+        # Find out if we got a pac dot. If we did, add 10 points.
+        previousFoodNum = self.getFood(previousState).count()
+        foodNum = self.getFood(gameState).count()
+
+        reward += 10 * (previousFoodNum - foodNum)
+
+        return reward
+
+    def update(self, gameState, action, nextState, reward):
+        """
+        Updates our values. Called on getAction
+        """
+
+        # Don't do anything on first iteration
+        if self.getPreviousObservation() is None:
+            return
+
+        correction = reward + self.discount_factor * self.getValue(nextState) - self.getQValue(gameState, action)
+        features = self.getFeatures(gameState, action)
+
+        for weight_name in self.weights:
+            self.weights[weight_name] += self.learning_rate * correction * features[weight_name]
+
+    def getQValue(self, gameState, action):
+        """
+        Returns the value we think the given action will give us.
+        """
+
+        features = self.getFeatures(gameState, action)
+
+        return sum(features[feature] * self.weights[feature] for feature in features)
+
+    def getValue(self, gameState):
+        """
+        Returns the value we're giving the current state.
+        """
+        return max([self.getQValue(gameState, action) for action in gameState.getLegalActions(self.index)] or [0])
+
+    def getPolicy(self, gameState):
+        """
+        Returns the best action to take in this state.
+        """
+        legalActions = list(gameState.getLegalActions(self.index))
+        # Shuffle to break ties randomly
+        random.shuffle(legalActions)
+        return max(legalActions or [None], key=lambda action: self.getQValue(gameState, action))
+
+    def getFeatures(self, gameState, action):
         '''
-        You should change this in your own agent.
+        Returns a list of features.
+        IMPORTANT: These should all return values between 0 and 1. For all new features, try to normalize them.
         '''
 
-        return random.choice(actions)
+        # TODO: Incorporate "action" into these features (as right now they only take into account the state)
+        # TODO: Add more features / figure out whihc features are important
+        features = util.Counter()
+        x, y = gameState.getAgentPosition(self.index)
+        dx, dy = Actions.directionToVector(action) if action is not None else (0, 0)
+        next_x, next_y = x + dx, y + dy
+
+        walls = gameState.getWalls()
+        mazeSize = walls.width + walls.height
+
+        closestFood = min(self.getMazeDistance((next_x, next_y), food) for food in self.getFood(gameState).asList())
+
+        features['num_food'] = self.getFood(gameState).count() / self.initial_food
+        features['num_defending_food'] = self.getFoodYouAreDefending(gameState).count() / self.initial_defending_food
+        features['bias'] = 1.0
+        features['score'] = self.getScore(gameState)
+        features['closest_food'] = closestFood / mazeSize
+
+        # Distance away from opponents
+        agentDistances = gameState.getAgentDistances()
+
+        for agent_num in self.getOpponents(gameState):
+            features['opponent_' + str(agent_num) + '_distance'] = agentDistances[agent_num] / mazeSize
+
+        return features
+
+    def getPreviousAction(self):
+        return self.action_list[-1]

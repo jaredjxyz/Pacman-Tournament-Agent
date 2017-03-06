@@ -132,7 +132,7 @@ class CaptureAgent(Agent):
         self.display.clearDebug()
 
   #################
-  # Action Choice #
+  # Action Choice get
   #################
 
   def getAction(self, gameState):
