@@ -42,6 +42,7 @@ def createTeam(firstIndex, secondIndex, isRed,
 # Agents #
 ##########
 
+weights = util.Counter()
 
 class DummyAgent(CaptureAgent):
     """
@@ -64,6 +65,7 @@ class DummyAgent(CaptureAgent):
         self.learning_rate = .2
         self.exploration_rate = .05
         self.discount_factor = .99
+        self.training = True
 
     def registerInitialState(self, gameState):
         """
@@ -111,7 +113,7 @@ class DummyAgent(CaptureAgent):
 
         print 'Features', self.getFeatures(gameState, action)
         print
-        print 'Weights', self.weights
+        print 'Weights', self.getWeights()
         print
         print
 
@@ -146,8 +148,8 @@ class DummyAgent(CaptureAgent):
         correction = reward + self.discount_factor * self.getValue(nextState) - self.getQValue(gameState, action)
         features = self.getFeatures(gameState, action)
 
-        for weight_name in self.weights:
-            self.weights[weight_name] += self.learning_rate * correction * features[weight_name]
+        for weight_name in self.getWeights():
+            self.getWeights()[weight_name] += self.learning_rate * correction * features[weight_name]
 
     def getQValue(self, gameState, action):
         """
@@ -156,7 +158,7 @@ class DummyAgent(CaptureAgent):
 
         features = self.getFeatures(gameState, action)
 
-        return sum(features[feature] * self.weights[feature] for feature in features)
+        return sum(features[feature] * self.getWeights()[feature] for feature in features)
 
     def getValue(self, gameState):
         """
@@ -207,3 +209,9 @@ class DummyAgent(CaptureAgent):
 
     def getPreviousAction(self):
         return self.action_list[-1]
+
+    def getWeights(self):
+        if self.training:
+            return weights
+        else:
+            return self.weights
