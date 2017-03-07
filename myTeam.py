@@ -131,7 +131,7 @@ class DummyAgent(CaptureAgent):
 
         print 'Features', self.getFeatures(gameState, action)
         print
-        print 'Weights', self.getWeights()
+        print 'Weights', self.weights
         print
         print
 
@@ -167,7 +167,7 @@ class DummyAgent(CaptureAgent):
         features = self.getFeatures(gameState, action)
 
         for weight_name in features:
-            self.getWeights()[weight_name] += self.learning_rate * correction * features[weight_name]
+            self.weights[weight_name] += self.learning_rate * correction * features[weight_name]
 
     def getQValue(self, gameState, action):
         """
@@ -176,7 +176,7 @@ class DummyAgent(CaptureAgent):
 
         features = self.getFeatures(gameState, action)
 
-        return sum(features[feature] * self.getWeights()[feature] for feature in features)
+        return sum(features[feature] * self.weights[feature] for feature in features)
 
     def getValue(self, gameState):
         """
@@ -228,9 +228,6 @@ class DummyAgent(CaptureAgent):
 
     def getPreviousAction(self):
         return self.action_list[-1]
-
-    def getWeights(self):
-        return weights if self.isTraining() else self.weights
 
     def isTraining(self):
         # return self.gameNumber <= self.numTraining
