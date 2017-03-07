@@ -36,13 +36,16 @@ def createTeam(firstIndex, secondIndex, isRed,
 
     # The following line is an example only; feel free to change it.
 
-    return [eval(first)(firstIndex), eval(second)(secondIndex)]
+    return [eval(first)(firstIndex, **kwargs), eval(second)(secondIndex, **kwargs)]
 
 ##########
 # Agents #
 ##########
 
+
 weights = util.Counter()
+weights['closest_food_aStar'] = -1
+
 
 class DummyAgent(CaptureAgent):
     """
@@ -57,15 +60,21 @@ class DummyAgent(CaptureAgent):
         '''
         Initialize agent
         '''
-        CaptureAgent.__init__(self, *args, **kwargs)
 
         # Initialize all weights
         self.weights = util.Counter()
 
+        self.training_exploration_rate = .5
+        self.testing_exploration_rate = .05
+
         self.learning_rate = .2
-        self.exploration_rate = .5
+        self.exploration_rate = .8
         self.discount_factor = .99
-        self.training = True
+
+        self.gameNumber = 0
+        self.numTraining = kwargs.pop('numTraining', 0)
+
+        CaptureAgent.__init__(self, *args, **kwargs)
 
     def registerInitialState(self, gameState):
         """
@@ -87,11 +96,20 @@ class DummyAgent(CaptureAgent):
         CaptureAgent.registerInitialState in captureAgents.py.
         '''
         CaptureAgent.registerInitialState(self, gameState)
+        self.gameNumber += 1
 
         # Your initialization code goes here, if you need any.
-        self.action_list = [None]
+        self.action_list = [Directions.STOP]
         self.initial_food = self.getFood(gameState).count()
         self.initial_defending_food = self.getFoodYouAreDefending(gameState).count()
+
+        self.exploration_rate = self.training_exploration_rate if self.isTraining() else self.testing_exploration_rate
+        print 'Exploration rate', self.exploration_rate
+
+        # Copy global weights to local once we stop training
+        # if self.gameNumber == self.numTraining + 1:
+        #     self.weights = weights
+        self.weights['closest_food_aStar'] = -1
 
     def chooseAction(self, gameState):
         """
@@ -148,7 +166,7 @@ class DummyAgent(CaptureAgent):
         correction = reward + self.discount_factor * self.getValue(nextState) - self.getQValue(gameState, action)
         features = self.getFeatures(gameState, action)
 
-        for weight_name in self.getWeights():
+        for weight_name in features:
             self.getWeights()[weight_name] += self.learning_rate * correction * features[weight_name]
 
     def getQValue(self, gameState, action):
@@ -190,16 +208,15 @@ class DummyAgent(CaptureAgent):
         nextGameState = gameState.generateSuccessor(self.index, action)
 
         walls = gameState.getWalls()
-        mazeSize = walls.width + walls.height
-
-        closestFood = min(self.getMazeDistance((next_x, next_y), food) for food in self.getFood(gameState).asList())
+        mazeSize = walls.width * walls.height
 
         features['num_food'] = self.getFood(gameState).count() / self.initial_food
         features['num_defending_food'] = self.getFoodYouAreDefending(gameState).count() / self.initial_defending_food
         features['bias'] = 1.0
         features['score'] = self.getScore(gameState)
-        features['closest_food'] = closestFood / mazeSize
-        features['closest_food_aStar'] = self.aStarSearch(nextGameState, (next_x, next_y), self.getFood(nextGameState).asList())
+        features['closest_food_aStar'] = len(self.aStarSearch(nextGameState, self.getFood(gameState).asList())) / mazeSize
+        features['just_ate_food'] = 1 if self.getFood(gameState).count() > self.getFood(nextGameState).count() else 0
+        # print features['just_ate_food']
 
         # Distance away from opponents
         agentDistances = gameState.getAgentDistances()
@@ -213,33 +230,49 @@ class DummyAgent(CaptureAgent):
         return self.action_list[-1]
 
     def getWeights(self):
-        if self.training:
-            return weights
-        else:
-            return self.weights
+        return weights if self.isTraining() else self.weights
+
+    def isTraining(self):
+        # return self.gameNumber <= self.numTraining
+        return False
 
     # ## A Star Search ## #
 
-    def aStarSearch(self, gameState, point1, goalPoints):
+    def aStarSearch(self, gameState, goalPositions, agentIndex=None):
         """
-        Search the node that has the lowest combined cost and heuristic first.
+        Finds the distance between the agent with the given index and its nearest goalPosition
         """
+        if agentIndex is None:
+            agentIndex = self.index
 
-        start = point1
+        start = gameState.getAgentPosition(agentIndex)
 
-        # Values are stored a 3-tuples, (Position, Path, TotalCost, )
-        queue = util.PriorityQueueWithFunction(lambda point: point[2] + self.getMazeDistance(point1, point[0]))
-        currentPosition, currentPath, currentTotal = start, [], 0
+        # If we can't see the agent, return None
+        if start is None:
+            return None
+
+        # Values are stored a 4-tuples, (State, Position, Path, TotalCost)
+
+        currentPosition, currentState, currentPath, currentTotal = start, gameState, [], 0
+        # Priority queue uses the maze distance between the entered point and its closest goal position to decide which comes first
+        queue = util.PriorityQueueWithFunction(lambda entry: currentTotal + min(self.getMazeDistance(entry[0], endPoint) for endPoint in goalPositions))
+
+        # Keeps track of visited positions
         visited = set([currentPosition])
-        while currentPosition not in goalPoints:
-            possibleActions = gameState.getLegalActions(self.index)
-            successorStates = [(gameState.generateSuccessor(self.index, action).getAgentPosition(self.index), action, 1) for action in possibleActions]
 
-            for state, action, cost in successorStates:
+        while currentPosition not in goalPositions:
+            # print currentPosition
+            # print goalPositions
+            # print
+            possibleActions = currentState.getLegalActions(agentIndex)
+            successorStates = [(currentState.generateSuccessor(agentIndex, action), action) for action in possibleActions]
 
-                visited.add(state)
-                queue.push((state, currentPath + [action], currentTotal + cost))
-            currentState, currentPath, currentTotal = queue.pop()
+            for state, action in successorStates:
+                position = state.getAgentPosition(self.index)
+                if position not in visited:
+                    visited.add(position)
+                    queue.push((position, state, currentPath + [action], currentTotal + 1))
+            currentPosition, currentState, currentPath, currentTotal = queue.pop()
 
         # Check heuristic for consistency #2
         return currentPath
