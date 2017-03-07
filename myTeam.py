@@ -62,8 +62,9 @@ class DummyAgent(CaptureAgent):
         '''
 
         # Initialize all weights
+        self.gameNumber = 0
         self.weights = util.Counter()
-
+        self.numTraining = kwargs.pop('numTraining', 0)
         self.training_exploration_rate = .5
         self.testing_exploration_rate = .05
 
@@ -71,8 +72,9 @@ class DummyAgent(CaptureAgent):
         self.exploration_rate = .8
         self.discount_factor = .99
 
-        self.gameNumber = 0
-        self.numTraining = kwargs.pop('numTraining', 0)
+        # Manually put in weights here
+        if self.numTraining == 0:
+            self.weights.update({'score': 0.6809099995971538, 'num_defending_food': 23.6565508664964, 'opponent_0_distance': 2.0699359632136902, 'num_food': 23.633853866509785, 'bias': 115.8643705168336, 'opponent_2_distance': 1.9917190914963816, 'closest_food_aStar': -1.9670769570603142})
 
         CaptureAgent.__init__(self, *args, **kwargs)
 
@@ -104,7 +106,6 @@ class DummyAgent(CaptureAgent):
         self.initial_defending_food = self.getFoodYouAreDefending(gameState).count()
 
         self.exploration_rate = self.training_exploration_rate if self.isTraining() else self.testing_exploration_rate
-        print 'Exploration rate', self.exploration_rate
 
         # Copy global weights to local once we stop training
         # if self.gameNumber == self.numTraining + 1:
@@ -129,11 +130,12 @@ class DummyAgent(CaptureAgent):
         else:
             action = self.getPolicy(gameState)
 
-        print 'Features', self.getFeatures(gameState, action)
-        print
-        print 'Weights', self.weights
-        print
-        print
+        if not self.isTraining():
+            print 'Features', self.getFeatures(gameState, action)
+            print
+            print 'Weights', self.weights
+            print
+            print
 
         return action
 
@@ -215,8 +217,6 @@ class DummyAgent(CaptureAgent):
         features['bias'] = 1.0
         features['score'] = self.getScore(gameState)
         features['closest_food_aStar'] = len(self.aStarSearch(nextGameState, self.getFood(gameState).asList())) / mazeSize
-        features['just_ate_food'] = 1 if self.getFood(gameState).count() > self.getFood(nextGameState).count() else 0
-        # print features['just_ate_food']
 
         # Distance away from opponents
         agentDistances = gameState.getAgentDistances()
