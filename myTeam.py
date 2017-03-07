@@ -130,7 +130,7 @@ class DummyAgent(CaptureAgent):
         else:
             action = self.getPolicy(gameState)
 
-        if not self.isTraining():
+        if self.isTraining():
             print 'Features', self.getFeatures(gameState, action)
             print
             print 'Weights', self.weights
@@ -230,8 +230,8 @@ class DummyAgent(CaptureAgent):
         return self.action_list[-1]
 
     def isTraining(self):
-        # return self.gameNumber <= self.numTraining
-        return False
+        return self.gameNumber <= self.numTraining
+
 
     # ## A Star Search ## #
 
