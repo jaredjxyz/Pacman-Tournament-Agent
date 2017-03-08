@@ -214,7 +214,7 @@ class DummyAgent(CaptureAgent):
         features['num_food'] = food.count() / self.initial_food
         features['num_defending_food'] = self.getFoodYouAreDefending(gameState).count() / self.initial_defending_food
         features['bias'] = 1.0
-        features['score'] = self.getScore(gameState)
+        # features['score'] = self.getScore(gameState)
 
         # If it can't find the path, returns mazeSize/mazeSize
         aStar_food_path = self.aStarSearch(nextPosition, nextGameState, food.asList())
@@ -223,8 +223,8 @@ class DummyAgent(CaptureAgent):
         # Distance away from opponents
         agentDistances = gameState.getAgentDistances()
 
-        for agent_num in self.getOpponents(gameState):
-            features['opponent_' + str(agent_num) + '_distance'] = agentDistances[agent_num] / mazeSize
+        # for agent_num in self.getOpponents(gameState):
+        #     features['opponent_' + str(agent_num) + '_distance'] = agentDistances[agent_num] / mazeSize
 
         return features
 
@@ -233,6 +233,24 @@ class DummyAgent(CaptureAgent):
 
     def isTraining(self):
         return self.gameNumber <= self.numTraining
+
+    def isGhost(self, gameState, index):
+        """
+        Returns true ONLY if we can see the agent and it's definitely a ghost
+        """
+        position = gameState.getAgentPosition(index)
+        if position is None:
+            return False
+        return not (gameState.isOnRedTeam(index) ^ (position[0] < gameState.getWalls().width / 2))
+
+    def isPacman(self, gameState, index):
+        """
+        Returns true ONLY if we can see the agent and it's definitely a pacman
+        """
+        position = gameState.getAgentPosition(index)
+        if position is None:
+            return False
+        return not (gameState.isOnRedTeam(index) ^ (position[0] >= gameState.getWalls().width / 2))
 
     # ## A Star Search ## #
 
@@ -246,7 +264,9 @@ class DummyAgent(CaptureAgent):
         actionVectors = [Actions.directionToVector(action) for action in actions]
 
         enemyIndices = self.getOpponents(gameState)
-        enemyLocations = [gameState.getAgentPosition(i) for i in enemyIndices if gameState.getAgentPosition(i) is not None]
+        enemyLocations = [gameState.getAgentPosition(i) for i in enemyIndices if self.isGhost(gameState, i) and self.isPacman(gameState, self.index)]
+        attackablePacmen = [gameState.getAgentPosition(i) for i in enemyIndices if self.isPacman(gameState, i) and self.isGhost(gameState, self.index)]
+        goalPositions.extend(attackablePacmen)
 
         # Values are stored a 4-tuples, (State, Position, Path, TotalCost)
 
