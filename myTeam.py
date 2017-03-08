@@ -204,19 +204,21 @@ class DummyAgent(CaptureAgent):
         # TODO: Incorporate "action" into these features (as right now they only take into account the state)
         # TODO: Add more features / figure out whihc features are important
         features = util.Counter()
-        x, y = gameState.getAgentPosition(self.index)
-        dx, dy = Actions.directionToVector(action) if action is not None else (0, 0)
-        next_x, next_y = x + dx, y + dy
         nextGameState = gameState.generateSuccessor(self.index, action)
+        nextPosition = nextGameState.getAgentPosition(self.index)
+        food = self.getFood(gameState)
 
         walls = gameState.getWalls()
         mazeSize = walls.width * walls.height
 
-        features['num_food'] = self.getFood(gameState).count() / self.initial_food
+        features['num_food'] = food.count() / self.initial_food
         features['num_defending_food'] = self.getFoodYouAreDefending(gameState).count() / self.initial_defending_food
         features['bias'] = 1.0
         features['score'] = self.getScore(gameState)
-        features['closest_food_aStar'] = len(self.aStarSearch(nextGameState, self.getFood(gameState).asList())) / mazeSize
+
+        # If it can't find the path, returns mazeSize/mazeSize
+        aStar_food_path = self.aStarSearch(nextPosition, nextGameState, food.asList())
+        features['closest_food_aStar'] = (len(aStar_food_path) if aStar_food_path is not None else mazeSize) / mazeSize
 
         # Distance away from opponents
         agentDistances = gameState.getAgentDistances()
@@ -232,44 +234,43 @@ class DummyAgent(CaptureAgent):
     def isTraining(self):
         return self.gameNumber <= self.numTraining
 
-
     # ## A Star Search ## #
 
-    def aStarSearch(self, gameState, goalPositions, agentIndex=None):
+    def aStarSearch(self, startPosition, gameState, goalPositions):
         """
         Finds the distance between the agent with the given index and its nearest goalPosition
         """
-        if agentIndex is None:
-            agentIndex = self.index
 
-        start = gameState.getAgentPosition(agentIndex)
+        walls = gameState.getWalls().asList()
+        actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
+        actionVectors = [Actions.directionToVector(action) for action in actions]
 
-        # If we can't see the agent, return None
-        if start is None:
-            return None
+        enemyIndices = self.getOpponents(gameState)
+        enemyLocations = [gameState.getAgentPosition(i) for i in enemyIndices if gameState.getAgentPosition(i) is not None]
 
         # Values are stored a 4-tuples, (State, Position, Path, TotalCost)
 
-        currentPosition, currentState, currentPath, currentTotal = start, gameState, [], 0
+        currentPosition, currentPath, currentTotal = startPosition, [], 0
         # Priority queue uses the maze distance between the entered point and its closest goal position to decide which comes first
-        queue = util.PriorityQueueWithFunction(lambda entry: currentTotal + min(self.getMazeDistance(entry[0], endPoint) for endPoint in goalPositions))
+        queue = util.PriorityQueueWithFunction(lambda entry: entry[2] + (float('inf') if entry[0] in enemyLocations else 0) + (min(util.manhattanDistance(entry[0], endPosition) for endPosition in goalPositions)))
 
         # Keeps track of visited positions
         visited = set([currentPosition])
 
         while currentPosition not in goalPositions:
-            # print currentPosition
-            # print goalPositions
-            # print
-            possibleActions = currentState.getLegalActions(agentIndex)
-            successorStates = [(currentState.generateSuccessor(agentIndex, action), action) for action in possibleActions]
 
-            for state, action in successorStates:
-                position = state.getAgentPosition(self.index)
+            possiblePositions = [((currentPosition[0] + vector[0], currentPosition[1] + vector[1]), action) for vector, action in zip(actionVectors, actions)]
+            legalPositions = [(position, action) for position, action in possiblePositions if position not in walls]
+
+            for position, action in legalPositions:
                 if position not in visited:
                     visited.add(position)
-                    queue.push((position, state, currentPath + [action], currentTotal + 1))
-            currentPosition, currentState, currentPath, currentTotal = queue.pop()
+                    queue.push((position, currentPath + [action], currentTotal + 1))
 
-        # Check heuristic for consistency #2
+            # This shouldn't ever happen...But just in case...
+            if len(queue.heap) == 0:
+                return None
+            else:
+                currentPosition, currentPath, currentTotal = queue.pop()
+
         return currentPath
