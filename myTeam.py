@@ -294,3 +294,22 @@ class DummyAgent(CaptureAgent):
                 currentPosition, currentPath, currentTotal = queue.pop()
 
         return currentPath
+
+
+
+
+class edgeDict(dict):
+    '''
+    Keeps a list of undirected edges. Doesn't matter what order you add them in.
+    '''
+    def __init__(self, *args, **kwargs):
+        dict.__init__(self, *args, **kwargs)
+
+    def __getitem__(self, key):
+        return dict.__getitem__(self, tuple(sorted(key)))
+
+    def __setitem__(self, key, val):
+        return dict.__setitem__(self, tuple(sorted(key)), val)
+
+    def __contains__(self, key):
+        return dict.__contains__(self, tuple(sorted(key)))
