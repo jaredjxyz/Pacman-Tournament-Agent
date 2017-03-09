@@ -111,6 +111,7 @@ class DummyAgent(CaptureAgent):
         # if self.gameNumber == self.numTraining + 1:
         #     self.weights = weights
         self.weights['closest_food_aStar'] = -1
+        self.convertToGraph(gameState)
 
     def chooseAction(self, gameState):
         """
@@ -254,7 +255,7 @@ class DummyAgent(CaptureAgent):
 
     # ## A Star Search ## #
 
-    def aStarSearch(self, startPosition, gameState, goalPositions):
+    def aStarSearch(self, startPosition, gameState, goalPositions, attackPacmen=True):
         """
         Finds the distance between the agent with the given index and its nearest goalPosition
         """
@@ -265,10 +266,12 @@ class DummyAgent(CaptureAgent):
 
         enemyIndices = self.getOpponents(gameState)
         enemyLocations = [gameState.getAgentPosition(i) for i in enemyIndices if self.isGhost(gameState, i) and self.isPacman(gameState, self.index)]
-        attackablePacmen = [gameState.getAgentPosition(i) for i in enemyIndices if self.isPacman(gameState, i) and self.isGhost(gameState, self.index)]
-        goalPositions.extend(attackablePacmen)
 
-        # Values are stored a 4-tuples, (State, Position, Path, TotalCost)
+        if attackPacmen:
+            attackablePacmen = [gameState.getAgentPosition(i) for i in enemyIndices if self.isPacman(gameState, i) and self.isGhost(gameState, self.index)]
+            goalPositions.extend(attackablePacmen)
+
+        # Values are stored a 3-tuples, (Position, Path, TotalCost)
 
         currentPosition, currentPath, currentTotal = startPosition, [], 0
         # Priority queue uses the maze distance between the entered point and its closest goal position to decide which comes first
@@ -295,10 +298,127 @@ class DummyAgent(CaptureAgent):
 
         return currentPath
 
+    def positionIsHome(self, position, gameWidth):
+        return not (self.red ^ (position[0] < gameWidth / 2))
+
+    def convertToGraph(self, gameState):
+        endingPositions = self.getFoodYouAreDefending(gameState).asList()
+        walls = gameState.getWalls()
+        wallPositions = walls.asList()
+        possiblePositions = [(x, y) for x in range(walls.width) for y in range(walls.height) if (x, y) not in wallPositions and self.positionIsHome((x, y), walls.width)]
+        startX = walls.width / 2 - 1 if self.red else walls.width / 2
+        startingPositions = [position for position in possiblePositions if position[0] == startX]
+
+        actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
+        actionVectors = [Actions.directionToVector(action) for action in actions]
+        # Change vectors from float to int
+        actionVectors = [tuple(int(number) for number in vector) for vector in actionVectors]
+
+        # Make source and sink
+        source = (-1, -1)
+
+        network = FlowNetwork()
+
+        # Add all vertices
+        for position in possiblePositions:
+            network.AddVertex(position)
+        network.AddVertex(source)
+
+        # Add normal edges
+        edges = EdgeDict()
+        for position in possiblePositions:
+            for vector in actionVectors:
+                newPosition = (position[0] + vector[0], position[1] + vector[1])
+                if newPosition in possiblePositions:
+                    edges[(position, newPosition)] = 1
+
+        # Add edges attached to source
+        for position in startingPositions:
+            edges[(source, position)] = 1
+
+        for edge in edges:
+            network.AddEdge(edge[0], edge[1], edges[edge])
+
+        print 'ending', endingPositions[0]
+
+        print('PATH:', network.MaxFlow(source, endingPositions[0]))
+
+# ### Implementation of Ford-Fulkerson algorithm, taken from https://github.com/bigbighd604/Python/blob/master/graph/Ford-Fulkerson.py
 
 
+class Edge(object):
+    def __init__(self, u, v, w):
+        self.source = u
+        self.target = v
+        self.capacity = w
 
-class edgeDict(dict):
+    def __repr__(self):
+        return "%s->%s:%s" % (self.source, self.target, self.capacity)
+
+    def __eq__(self, other):
+        return self.source == other.source and self.target == other.target
+
+
+class FlowNetwork(object):
+    def __init__(self):
+        self.adj = {}
+        self.flow = {}
+
+    def AddVertex(self, vertex):
+        self.adj[vertex] = []
+
+    def GetEdges(self, v):
+        return self.adj[v]
+
+    def AddEdge(self, u, v, w=0):
+        if u == v:
+            raise ValueError("u == v")
+        edge = Edge(u, v, w)
+        redge = Edge(v, u, w)
+        edge.redge = redge
+        redge.redge = edge
+        self.adj[u].append(edge)
+        self.adj[v].append(redge)
+        # Intialize all flows to zero
+        self.flow[edge] = 0
+        self.flow[redge] = 0
+
+    def FindPath(self, source, target, path):
+
+        if source == target:
+            return path
+
+        for edge in self.GetEdges(source):
+            residual = edge.capacity - self.flow[edge]
+
+            if residual > 0 and not (edge.target, residual) in path:
+                result = self.FindPath(edge.target, target, path + [(edge.target, residual)])
+                if result is not None:
+                    return result
+
+    def MaxFlow(self, source, target):
+        path = self.FindPath(source, target, [])
+        previousVertex = source
+        while path is not None:
+            print path
+            flow = min(res for vertex, res in path)
+            print flow,'flow'
+            for vertex, res in path:
+                for flowEdge in self.flow:
+                    if flowEdge.source == previousVertex and flowEdge.target == vertex:
+                        edge = flowEdge
+                        break
+
+                self.flow[edge] += flow
+                self.flow[edge.redge] -= flow
+            path = self.FindPath(source, target, [])
+
+        for edge in self.GetEdges(source):
+            print edge.source, edge.target, edge.capacity, self.flow[edge]
+        return sum(self.flow[edge] for edge in self.GetEdges(source))
+
+
+class EdgeDict(dict):
     '''
     Keeps a list of undirected edges. Doesn't matter what order you add them in.
     '''
@@ -313,3 +433,8 @@ class edgeDict(dict):
 
     def __contains__(self, key):
         return dict.__contains__(self, tuple(sorted(key)))
+
+    def getAdjacentPositions(self, key):
+        edgesContainingKey = [edge for edge in self if key in edge]
+        adjacentPositions = [[position for position in edge if position != key][0] for edge in edgesContainingKey]
+        return adjacentPositions
