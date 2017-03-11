@@ -488,6 +488,9 @@ class DefenseAgent(DummyAgent):
         if numDots >= 2:
             self.defenseMode = True
             self.GoToSpot = bottleneckPosition
+        else:
+            self.defenseMode = False
+            self.goToSpot = None
 
     def chooseAction(self, gameState):
         if self.defenseMode:
