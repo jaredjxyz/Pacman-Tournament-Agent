@@ -10,6 +10,10 @@ from captureAgents import CaptureAgent
 import random, time, util
 from game import Directions, Actions
 import game
+import sys
+import copy
+import collections
+# sys.setrecursionlimit(sys.getrecursionlimit() * 10)
 
 
 #################
@@ -18,7 +22,7 @@ import game
 
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='DummyAgent', second='DummyAgent', **kwargs):
+               first='DummyAgent', second='DefenseAgent', **kwargs):
     """
     This function should return a list of two agents that will form the
     team, initialized using firstIndex and secondIndex as their agent
@@ -221,7 +225,7 @@ class DummyAgent(CaptureAgent):
         features['closest_food_aStar'] = (len(aStar_food_path) if aStar_food_path is not None else mazeSize) / mazeSize
 
         # Distance away from opponents
-        agentDistances = gameState.getAgentDistances()
+        # agentDistances = gameState.getAgentDistances() <== This is not used yet
 
         # for agent_num in self.getOpponents(gameState):
         #     features['opponent_' + str(agent_num) + '_distance'] = agentDistances[agent_num] / mazeSize
@@ -254,7 +258,7 @@ class DummyAgent(CaptureAgent):
 
     # ## A Star Search ## #
 
-    def aStarSearch(self, startPosition, gameState, goalPositions):
+    def aStarSearch(self, startPosition, gameState, goalPositions, attackPacmen=True):
         """
         Finds the distance between the agent with the given index and its nearest goalPosition
         """
@@ -265,10 +269,12 @@ class DummyAgent(CaptureAgent):
 
         enemyIndices = self.getOpponents(gameState)
         enemyLocations = [gameState.getAgentPosition(i) for i in enemyIndices if self.isGhost(gameState, i) and self.isPacman(gameState, self.index)]
-        attackablePacmen = [gameState.getAgentPosition(i) for i in enemyIndices if self.isPacman(gameState, i) and self.isGhost(gameState, self.index)]
-        goalPositions.extend(attackablePacmen)
 
-        # Values are stored a 4-tuples, (State, Position, Path, TotalCost)
+        if attackPacmen:
+            attackablePacmen = [gameState.getAgentPosition(i) for i in enemyIndices if self.isPacman(gameState, i) and self.isGhost(gameState, self.index)]
+            goalPositions.extend(attackablePacmen)
+
+        # Values are stored a 3-tuples, (Position, Path, TotalCost)
 
         currentPosition, currentPath, currentTotal = startPosition, [], 0
         # Priority queue uses the maze distance between the entered point and its closest goal position to decide which comes first
@@ -294,3 +300,198 @@ class DummyAgent(CaptureAgent):
                 currentPosition, currentPath, currentTotal = queue.pop()
 
         return currentPath
+
+    def positionIsHome(self, position, gameWidth):
+        return not (self.red ^ (position[0] < gameWidth / 2))
+
+    def findBottleneckWithMostPacdots(self, gameState):
+        endingPositions = self.getFoodYouAreDefending(gameState).asList()
+        walls = gameState.getWalls()
+        wallPositions = walls.asList()
+        possiblePositions = [(x, y) for x in range(walls.width) for y in range(walls.height) if (x, y) not in wallPositions and self.positionIsHome((x, y), walls.width)]
+        startX = walls.width / 2 - 1 if self.red else walls.width / 2
+        startingPositions = [position for position in possiblePositions if position[0] == startX]
+
+        actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
+        actionVectors = [Actions.directionToVector(action) for action in actions]
+        # Change vectors from float to int
+        actionVectors = [tuple(int(number) for number in vector) for vector in actionVectors]
+
+        # Make source and sink
+        source = (-1, -1)
+
+        network = FlowNetwork()
+
+        # Add all vertices
+        for position in possiblePositions:
+            network.AddVertex(position)
+        network.AddVertex(source)
+
+        # Add normal edges
+        edges = EdgeDict()
+        for position in possiblePositions:
+            for vector in actionVectors:
+                newPosition = (position[0] + vector[0], position[1] + vector[1])
+                if newPosition in possiblePositions:
+                    edges[(position, newPosition)] = 1
+
+        # Add edges attached to source
+        for position in startingPositions:
+            edges[(source, position)] = float('inf')
+
+        for edge in edges:
+            network.AddEdge(edge[0], edge[1], edges[edge])
+
+        bottleneckCounter = collections.Counter()
+
+        for dot in endingPositions:
+            bottlenecks = network.FindBottlenecks(source, dot)
+            if len(bottlenecks) == 1:
+                bottleneckCounter[bottlenecks[0]] += 1
+            network.reset()
+
+        maxBottleneck = max(bottleneckCounter, key=lambda vertex: bottleneckCounter[vertex])
+        return maxBottleneck, bottleneckCounter[maxBottleneck]
+
+# ### Implementation of Ford-Fulkerson algorithm, taken from https://github.com/bigbighd604/Python/blob/master/graph/Ford-Fulkerson.py and heavily modified
+
+
+class Edge(object):
+    def __init__(self, u, v, w):
+        self.source = u
+        self.target = v
+        self.capacity = w
+
+    def __repr__(self):
+        return "%s->%s:%s" % (self.source, self.target, self.capacity)
+
+    def __eq__(self, other):
+        return self.source == other.source and self.target == other.target
+
+
+class FlowNetwork(object):
+    def __init__(self):
+        self.adj = {}
+        self.flow = {}
+
+    def AddVertex(self, vertex):
+        self.adj[vertex] = []
+
+    def GetEdges(self, v):
+        return self.adj[v]
+
+    def AddEdge(self, u, v, w=0):
+        if u == v:
+            raise ValueError("u == v")
+        edge = Edge(u, v, w)
+        redge = Edge(v, u, w)
+        edge.redge = redge
+        redge.redge = edge
+        self.adj[u].append(edge)
+        self.adj[v].append(redge)
+        # Intialize all flows to zero
+        self.flow[edge] = 0
+        self.flow[redge] = 0
+
+    def FindPath(self, source, target):
+
+        currentVertex, currentPath, currentTotal = source, [], 0
+        # Priority queue uses the maze distance between the entered point and its closest goal position to decide which comes first
+        queue = util.PriorityQueueWithFunction(lambda entry: entry[2] + util.manhattanDistance(entry[0], target))
+
+        visited = set()
+
+        # Keeps track of visited positions
+        while currentVertex != target:
+
+            possibleVertices = [(edge.target, edge) for edge in self.GetEdges(currentVertex)]
+
+            for vertex, edge in possibleVertices:
+                residual = edge.capacity - self.flow[edge]
+                if residual > 0 and not (edge, residual) in currentPath and (edge, residual) not in visited:
+                    visited.add((edge, residual))
+                    queue.push((vertex, currentPath + [(edge, residual)], currentTotal + 1))
+
+            if queue.isEmpty():
+                return None
+            else:
+                currentVertex, currentPath, currentTotal = queue.pop()
+
+        return currentPath
+
+    def FindBottlenecks(self, source, target):
+        maxflow, leadingEdges = self.MaxFlow(source, target)
+        paths = leadingEdges.values()
+
+        bottlenecks = []
+        for path in paths:
+            for edge, residual in path:
+                # Save the flows so we don't mess up the operation between path findings
+                if self.FindPath(source, edge.target) is None:
+                    bottlenecks.append(edge.target)
+                    break
+        assert len(bottlenecks) == maxflow
+        return bottlenecks
+
+    def MaxFlow(self, source, target):
+        # This keeps track of paths that go to our destination
+        leadingEdges = {}
+        path = self.FindPath(source, target)
+        while path is not None:
+            leadingEdges[path[0]] = path
+            flow = min(res for edge, res in path)
+            for edge, res in path:
+                self.flow[edge] += flow
+                self.flow[edge.redge] -= flow
+
+            path = self.FindPath(source, target)
+        maxflow = sum(self.flow[edge] for edge in self.GetEdges(source))
+        return maxflow, leadingEdges
+
+    def reset(self):
+        for edge in self.flow:
+            self.flow[edge] = 0
+
+
+class EdgeDict(dict):
+    '''
+    Keeps a list of undirected edges. Doesn't matter what order you add them in.
+    '''
+    def __init__(self, *args, **kwargs):
+        dict.__init__(self, *args, **kwargs)
+
+    def __getitem__(self, key):
+        return dict.__getitem__(self, tuple(sorted(key)))
+
+    def __setitem__(self, key, val):
+        return dict.__setitem__(self, tuple(sorted(key)), val)
+
+    def __contains__(self, key):
+        return dict.__contains__(self, tuple(sorted(key)))
+
+    def getAdjacentPositions(self, key):
+        edgesContainingKey = [edge for edge in self if key in edge]
+        adjacentPositions = [[position for position in edge if position != key][0] for edge in edgesContainingKey]
+        return adjacentPositions
+
+
+class DefenseAgent(DummyAgent):
+    def __init__(self, *args, **kwargs):
+        self.defenseMode = False
+        self.GoToSpot = None
+        CaptureAgent.__init__(self, *args, **kwargs)
+
+    def registerInitialState(self, gameState):
+
+        CaptureAgent.registerInitialState(self, gameState)
+        bottleneckPosition, numDots = self.findBottleneckWithMostPacdots(gameState)
+        if numDots >= 2:
+            self.defenseMode = True
+            self.GoToSpot = bottleneckPosition
+
+    def chooseAction(self, gameState):
+        if self.defenseMode:
+            pathToSpot = self.aStarSearch(gameState.getAgentPosition(self.index), gameState, [self.GoToSpot]) or [Directions.STOP]
+            return pathToSpot[0]
+        else:
+            return CaptureAgent.chooseAction(self, gameState)
