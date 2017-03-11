@@ -22,7 +22,7 @@ import collections
 
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='DummyAgent', second='DummyAgent', **kwargs):
+               first='DummyAgent', second='DefenseAgent', **kwargs):
     """
     This function should return a list of two agents that will form the
     team, initialized using firstIndex and secondIndex as their agent
@@ -49,6 +49,9 @@ def createTeam(firstIndex, secondIndex, isRed,
 
 weights = util.Counter()
 weights['closest_food_aStar'] = -1
+
+
+
 
 
 class DummyAgent(CaptureAgent):
@@ -116,7 +119,7 @@ class DummyAgent(CaptureAgent):
         #     self.weights = weights
         self.weights['closest_food_aStar'] = -1
 
-        print('Bottleneck', self.findBottleneckWithMostPacdots(gameState))
+
 
     def chooseAction(self, gameState):
         """
@@ -478,3 +481,24 @@ class EdgeDict(dict):
         edgesContainingKey = [edge for edge in self if key in edge]
         adjacentPositions = [[position for position in edge if position != key][0] for edge in edgesContainingKey]
         return adjacentPositions
+
+class DefenseAgent(DummyAgent):
+    def __init__(self, *args, **kwargs):
+        self.defenseMode = False
+        self.GoToSpot = None
+        CaptureAgent.__init__(self, *args, **kwargs)
+
+    def registerInitialState(self, gameState):
+
+        CaptureAgent.registerInitialState(self, gameState)
+        bottleneckPosition, numDots = self.findBottleneckWithMostPacdots(gameState)
+        if numDots >= 2:
+            self.defenseMode = True
+            self.GoToSpot = bottleneckPosition
+
+    def chooseAction(self, gameState):
+        if self.defenseMode:
+            pathToSpot = self.aStarSearch(gameState.getAgentPosition(self.index), gameState, [self.GoToSpot]) or [Directions.STOP]
+            return pathToSpot[0]
+        else:
+            return CaptureAgent.chooseAction(self, gameState)
