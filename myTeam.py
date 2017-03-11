@@ -337,15 +337,18 @@ class DummyAgent(CaptureAgent):
 
         # Add edges attached to source
         for position in startingPositions:
-            edges[(source, position)] = 1
+            edges[(source, position)] = float('inf')
 
         for edge in edges:
             network.AddEdge(edge[0], edge[1], edges[edge])
 
         for dot in endingPositions:
-            print 'For dot at ', dot, 'Max flow is ', network.MaxFlow(source, dot)
+            bottlenecks = network.FindBottlenecks(source, dot)
+            print 'For dot at ', dot, 'Bottlenecks are', bottlenecks
 
-# ### Implementation of Ford-Fulkerson algorithm, taken from https://github.com/bigbighd604/Python/blob/master/graph/Ford-Fulkerson.py
+            network.reset()
+
+# ### Implementation of Ford-Fulkerson algorithm, taken from https://github.com/bigbighd604/Python/blob/master/graph/Ford-Fulkerson.py and heavily modified
 
 
 class Edge(object):
@@ -411,9 +414,26 @@ class FlowNetwork(object):
 
         return currentPath
 
+    def FindBottlenecks(self, source, target):
+        maxflow, leadingEdges = self.MaxFlow(source, target)
+        paths = leadingEdges.values()
+
+        bottlenecks = []
+        for path in paths:
+            for edge, residual in path:
+                # Save the flows so we don't mess up the operation between path findings
+                if self.FindPath(source, edge.target) is None:
+                    bottlenecks.append(edge.target)
+                    break
+        assert len(bottlenecks) == maxflow
+        return bottlenecks
+
     def MaxFlow(self, source, target):
+        # This keeps track of paths that go to our destination
+        leadingEdges = {}
         path = self.FindPath(source, target)
         while path is not None:
+            leadingEdges[path[0]] = path
             flow = min(res for edge, res in path)
             for edge, res in path:
                 self.flow[edge] += flow
@@ -421,9 +441,11 @@ class FlowNetwork(object):
 
             path = self.FindPath(source, target)
         maxflow = sum(self.flow[edge] for edge in self.GetEdges(source))
+        return maxflow, leadingEdges
+
+    def reset(self):
         for edge in self.flow:
             self.flow[edge] = 0
-        return maxflow
 
 
 class EdgeDict(dict):
