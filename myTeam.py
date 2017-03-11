@@ -10,6 +10,9 @@ from captureAgents import CaptureAgent
 import random, time, util
 from game import Directions, Actions
 import game
+import sys
+import copy
+# sys.setrecursionlimit(sys.getrecursionlimit() * 10)
 
 
 #################
@@ -339,9 +342,8 @@ class DummyAgent(CaptureAgent):
         for edge in edges:
             network.AddEdge(edge[0], edge[1], edges[edge])
 
-        print 'ending', endingPositions[0]
-
-        print('PATH:', network.MaxFlow(source, endingPositions[0]))
+        for dot in endingPositions:
+            print 'For dot at ', dot, 'Max flow is ', network.MaxFlow(source, dot)
 
 # ### Implementation of Ford-Fulkerson algorithm, taken from https://github.com/bigbighd604/Python/blob/master/graph/Ford-Fulkerson.py
 
@@ -383,39 +385,45 @@ class FlowNetwork(object):
         self.flow[edge] = 0
         self.flow[redge] = 0
 
-    def FindPath(self, source, target, path):
+    def FindPath(self, source, target):
 
-        if source == target:
-            return path
+        currentVertex, currentPath, currentTotal = source, [], 0
+        # Priority queue uses the maze distance between the entered point and its closest goal position to decide which comes first
+        queue = util.PriorityQueueWithFunction(lambda entry: entry[2] + util.manhattanDistance(entry[0], target))
 
-        for edge in self.GetEdges(source):
-            residual = edge.capacity - self.flow[edge]
+        visited = set()
 
-            if residual > 0 and not (edge.target, residual) in path:
-                result = self.FindPath(edge.target, target, path + [(edge.target, residual)])
-                if result is not None:
-                    return result
+        # Keeps track of visited positions
+        while currentVertex != target:
+
+            possibleVertices = [(edge.target, edge) for edge in self.GetEdges(currentVertex)]
+
+            for vertex, edge in possibleVertices:
+                residual = edge.capacity - self.flow[edge]
+                if residual > 0 and not (edge, residual) in currentPath and (edge, residual) not in visited:
+                    visited.add((edge, residual))
+                    queue.push((vertex, currentPath + [(edge, residual)], currentTotal + 1))
+
+            if queue.isEmpty():
+                return None
+            else:
+                currentVertex, currentPath, currentTotal = queue.pop()
+
+        return currentPath
 
     def MaxFlow(self, source, target):
-        path = self.FindPath(source, target, [])
-        previousVertex = source
+        path = self.FindPath(source, target)
         while path is not None:
-            print path
-            flow = min(res for vertex, res in path)
-            print flow,'flow'
-            for vertex, res in path:
-                for flowEdge in self.flow:
-                    if flowEdge.source == previousVertex and flowEdge.target == vertex:
-                        edge = flowEdge
-                        break
-
+            flow = min(res for edge, res in path)
+            for edge, res in path:
                 self.flow[edge] += flow
                 self.flow[edge.redge] -= flow
-            path = self.FindPath(source, target, [])
 
-        for edge in self.GetEdges(source):
-            print edge.source, edge.target, edge.capacity, self.flow[edge]
-        return sum(self.flow[edge] for edge in self.GetEdges(source))
+            path = self.FindPath(source, target)
+        maxflow = sum(self.flow[edge] for edge in self.GetEdges(source))
+        for edge in self.flow:
+            self.flow[edge] = 0
+        return maxflow
 
 
 class EdgeDict(dict):
