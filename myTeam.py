@@ -12,6 +12,7 @@ from game import Directions, Actions
 import game
 import sys
 import copy
+import collections
 # sys.setrecursionlimit(sys.getrecursionlimit() * 10)
 
 
@@ -114,7 +115,8 @@ class DummyAgent(CaptureAgent):
         # if self.gameNumber == self.numTraining + 1:
         #     self.weights = weights
         self.weights['closest_food_aStar'] = -1
-        self.convertToGraph(gameState)
+
+        print('Bottleneck', self.findBottleneckWithMostPacdots(gameState))
 
     def chooseAction(self, gameState):
         """
@@ -304,7 +306,7 @@ class DummyAgent(CaptureAgent):
     def positionIsHome(self, position, gameWidth):
         return not (self.red ^ (position[0] < gameWidth / 2))
 
-    def convertToGraph(self, gameState):
+    def findBottleneckWithMostPacdots(self, gameState):
         endingPositions = self.getFoodYouAreDefending(gameState).asList()
         walls = gameState.getWalls()
         wallPositions = walls.asList()
@@ -342,11 +344,19 @@ class DummyAgent(CaptureAgent):
         for edge in edges:
             network.AddEdge(edge[0], edge[1], edges[edge])
 
+        bottleneckCounter = collections.Counter()
+
         for dot in endingPositions:
             bottlenecks = network.FindBottlenecks(source, dot)
-            print 'For dot at ', dot, 'Bottlenecks are', bottlenecks
-
+            if len(bottlenecks) == 1:
+                bottleneckCounter[bottlenecks[0]] += 1
             network.reset()
+
+        maxBottleneck = max(bottleneckCounter, key=lambda vertex: bottleneckCounter[vertex])
+        return maxBottleneck, bottleneckCounter[maxBottleneck]
+
+
+
 
 # ### Implementation of Ford-Fulkerson algorithm, taken from https://github.com/bigbighd604/Python/blob/master/graph/Ford-Fulkerson.py and heavily modified
 
