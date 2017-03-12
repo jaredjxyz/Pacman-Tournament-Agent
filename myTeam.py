@@ -208,6 +208,7 @@ class DummyAgent(CaptureAgent):
         # TODO: Incorporate "action" into these features (as right now they only take into account the state)
         # TODO: Add more features / figure out whihc features are important
         features = util.Counter()
+        position = gameState.getAgentPosition(self.index)
         nextGameState = gameState.generateSuccessor(self.index, action)
         nextPosition = nextGameState.getAgentPosition(self.index)
         food = self.getFood(gameState)
@@ -230,22 +231,19 @@ class DummyAgent(CaptureAgent):
         aStar_food_path = self.aStarSearch(nextPosition, nextGameState, goalPositions)
 
         # If we're being chased, avoid positions that we can't get out of easily
+        newGoal = []
         if self.isBeingChased(gameState):
-            newGoalPositions = list(goalPositions)
-            while True:
-                newPosition = copy.copy(nextPosition)
-                actionVectors = [Actions.directionToVector(path_action) for path_action in aStar_food_path]
-                actionVectors = [tuple(int(number) for number in vector) for vector in actionVectors]
-                for vector in actionVectors:
-                    newPosition = (vector[0] + newPosition[0], vector[1] + newPosition[1])
-                possibleMoves = [(1, 0), (0, 1), (-1, 0), (0, -1)]
-                possiblePositions = [(move[0] + newPosition[0], move[1] + newPosition[1]) for move in possibleMoves]
-                legalPositions = [pposition for pposition in possiblePositions if pposition not in walls.asList()]
-                options = len(legalPositions)
-                if options > 1 or len(newGoalPositions) == 1:
-                    break
-                newGoalPositions.remove(newPosition)
-                aStar_food_path = self.aStarSearch(nextPosition, nextGameState, newGoalPositions)
+            newGoal = copy.copy(goalPositions)
+            network = self.getFlowNetwork(gameState, defenseOnly=False)[0]
+            for goalPosition in goalPositions:
+                if util.manhattanDistance(position, goalPosition) <= 5:
+                    if len(self.aStarSearch(position, gameState, [goalPosition])) <= 5:
+                        maxFlow = network.MaxFlow(position, goalPosition)
+                        network.reset()
+                        if maxFlow <= 1:
+                            newGoal.remove(goalPosition)
+
+        aStar_food_path = self.aStarSearch(nextPosition, nextGameState, newGoal or goalPositions)
 
         features['closest_food_aStar'] = (len(aStar_food_path) if aStar_food_path is not None else mazeSize) / mazeSize
 
@@ -370,7 +368,7 @@ class DummyAgent(CaptureAgent):
 
         walls = gameState.getWalls()
         wallPositions = walls.asList()
-        possiblePositions = [(x, y) for x in range(walls.width) for y in range(walls.height) if (x, y) not in wallPositions and (defenseOnly and self.positionIsHome((x, y), walls.width))]
+        possiblePositions = [(x, y) for x in range(walls.width) for y in range(walls.height) if (x, y) not in wallPositions and (not defenseOnly or self.positionIsHome((x, y), walls.width))]
 
         actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
         actionVectors = [Actions.directionToVector(action) for action in actions]
