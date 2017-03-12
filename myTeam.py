@@ -211,9 +211,14 @@ class DummyAgent(CaptureAgent):
         nextGameState = gameState.generateSuccessor(self.index, action)
         nextPosition = nextGameState.getAgentPosition(self.index)
         food = self.getFood(gameState)
+        capsules = self.getCapsules(gameState)
 
         walls = gameState.getWalls()
         mazeSize = walls.width * walls.height
+
+        enemyIndices = self.getOpponents(gameState)
+        attackablePacmen = [gameState.getAgentPosition(i) for i in enemyIndices if self.isPacman(gameState, i) and self.isGhost(gameState, self.index)]
+        goalPositions = food.asList() + attackablePacmen + capsules
 
         features['num_food'] = food.count() / self.initial_food
         features['num_defending_food'] = self.getFoodYouAreDefending(gameState).count() / self.initial_defending_food
@@ -221,7 +226,7 @@ class DummyAgent(CaptureAgent):
         # features['score'] = self.getScore(gameState)
 
         # If it can't find the path, returns mazeSize/mazeSize
-        aStar_food_path = self.aStarSearch(nextPosition, nextGameState, food.asList())
+        aStar_food_path = self.aStarSearch(nextPosition, nextGameState, goalPositions)
         features['closest_food_aStar'] = (len(aStar_food_path) if aStar_food_path is not None else mazeSize) / mazeSize
 
         # Distance away from opponents
@@ -258,7 +263,7 @@ class DummyAgent(CaptureAgent):
 
     # ## A Star Search ## #
 
-    def aStarSearch(self, startPosition, gameState, goalPositions, attackPacmen=True):
+    def aStarSearch(self, startPosition, gameState, goalPositions):
         """
         Finds the distance between the agent with the given index and its nearest goalPosition
         """
@@ -269,10 +274,6 @@ class DummyAgent(CaptureAgent):
 
         enemyIndices = self.getOpponents(gameState)
         enemyLocations = [gameState.getAgentPosition(i) for i in enemyIndices if self.isGhost(gameState, i) and self.isPacman(gameState, self.index)]
-
-        if attackPacmen:
-            attackablePacmen = [gameState.getAgentPosition(i) for i in enemyIndices if self.isPacman(gameState, i) and self.isGhost(gameState, self.index)]
-            goalPositions.extend(attackablePacmen)
 
         # Values are stored a 3-tuples, (Position, Path, TotalCost)
 
