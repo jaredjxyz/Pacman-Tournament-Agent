@@ -230,7 +230,7 @@ class DummyAgent(CaptureAgent):
         aStar_food_path = self.aStarSearch(nextPosition, nextGameState, goalPositions)
 
         # If we're being chased, avoid positions that we can't get out of easily
-        if self.isBeingChased(gameState):Satur
+        if self.isBeingChased(gameState):
             newGoalPositions = list(goalPositions)
             while True:
                 newPosition = copy.copy(nextPosition)
