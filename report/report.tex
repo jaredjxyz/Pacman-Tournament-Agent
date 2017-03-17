@@ -11,35 +11,38 @@
 
 
 \begin{abstract}
-	Lorem ipsum dolor sit amet, consectetur adipiscing elit,
-	sed do eiusmod tempor incididunt ut labore et dolore magna
-	aliqua. Ut enim ad minim veniam, quis nostrud exercitation
-	ullamco laboris nisi ut aliquip ex ea commodo consequat.
-	Duis aute irure dolor in reprehenderit in voluptate velit
-	esse cillum dolore eu fugiat nulla pariatur. Excepteur sint
-	occaecat cupidatat non proident, sunt in culpa qui officia
-	deserunt mollit anim id est laborum.
+	We offer a q-learning offensive agent that used a handful of features
+	exploited from the game environment. An A star search feature for an
+	approximate q learning agent proved to be most valuable on offensive.
+	We also provide a framework, that takes, as input, a game state instance
+	and converts it to a network flow graph. This framework allowed us to
+	implement a defensive agent that could discover and guard natural bottleneck
+	positions in the game environment, making it impossible for enemies to penetrate
+	further into defensive territory. Adding an A star attack procedure to the
+	defensive agent further increased the agents defensive abilities.
 \end{abstract}
 
+\newpage
 
-\section{Approximate Q-learning Agent}
-
+\section{Introduction}
 \subsection{Fundamental Problem and Obstacles}
-Our initial approach involved understanding capture the flag and determining
+Our initial approach involved understanding Capture the Flag and determining
 what type of agent would fit into this problem. We realized right away that
 the game involved several strategies based on several features. It seemed like
 if we could define a proper set of features then a q-learning agent would work
-well in capture the flag. \
+well in Capture the Flag. \
 
-Our first goal was to create an overall offensive and defensive agent for capture the flag. We
-chose to model the capture the flag problem as a set of features that the q-learning agent
+Our first goal was to create an overall offensive and defensive agent for Capture the Flag. We
+chose to model the Capture the Flag problem as a set of features that the q-learning agent
 could learn weights for. Initially we settled on \textit{number of food pellets, number of defending food pellets, score,
 closest food pellets, opponent distance} as our set of features. These features seemed
 to be working well, and once we correctly saved the weights so that all 4 agents could work together
 they were performing better than expected. \
 
+\section{Approximate Q-learning Agent}
+
 \subsection{Agent Evaluation}
-In our initial implementation of the q-learning agent we did not generalize enough. We realized
+In our initial implementation of the q-learning agent we implemented, did not generalize enough. We realized
 that when training the agent we only did so on one map. So given the feature, the agent
 was able to learn how to perform well given one map, but when it played on a random seed, it
 failed miserably. \
@@ -75,46 +78,52 @@ realize that when the \textit{opponent distance} was really low, it performed po
 When our agent would die it would have to go all the way to the starting part of the map, and through
 learning episodes and \textit{opponent distance} feature, it found that is was bad to be
 near the ghosts. In other words it obtained more rewards when it avoided
-ghosts, and therefore chose actions to run away! \
-
+ghosts, and therefore chose actions to run away!
 This was a really cool and interesting result of feature learning. It is a great example of
 choosing correct features that results in positive behavior.
+\footnote{Please see the following methods on the \textit{DummyAgent} : \textit{update(), getQvalues(),
+getPolicy(), getFeatures()} }.
 
-% I don't know why but this has to be up here otherwise it goes to the bottom
+\section{Max Flow Defense}
+
+\subsection{Model of the Problem}
+With a decent offensive q-learning agent, it seemed natural to implement
+a dedicated defensive agent. We needed to improve on the baseline random
+action reflex agent, so we considered features that could possibly benefit
+the defensive cause.By observation we noticed a unique bottleneck characteristic of
+pacman levels (see teal Ghost in Figure 1).
+
 \begin{wrapfigure}{L}{0.5\textwidth}
 \centering
 \includegraphics[width=0.5\textwidth]{report_fig1.png}
 \caption{\label{fig:1}Map Bottleneck}
 \end{wrapfigure}
-\section{Max Flow Defense}
 
-\subsection{Fundamental Problem and Obstacles}
-With a decent offensive q-learning agent, it seemed natural to implement
-a dedicated defensive agent. We needed to improve on the baseline random
-action reflex agent, so we considered features that could possibly benefit
-the defensive cause.By observation we noticed a unique bottleneck characteristic of
-pacman levels (see teal Ghost in Figure 1). Most levels had a spot where, the ghost
+Most levels had a spot where, the ghost
 could stay and completely block the enemy pacman from winning.
 If we could teach our agent how to find the natural bottleneck position, then that would
 prevent offense from consuming more pellets.
 Therefore, our next goal became to model the game level in such a way that
-allowed us to find this position given any pacman map layout.
+allowed us to find this position given any pacman map layout. \
 
-\subsection{Model of the Problem}
-
-
-We then chose to model the map as a network flow graph, and use Ford-Fulkerson
+We chose to model the map as a network flow graph, and use Ford-Fulkerson
 to determine the maximum flow in the graph. We constructed a framework that could
-convert the map we're given into a flow network, where the vertices are the possible
-non-wall positions and the edges are ordered pairs of possible positions, with two edges
-(one forward and one backward) for each pair of adjacent positions. We the capacities of
+convert the given into a flow network, where vertices are the possible
+non-wall positions and the edges are ordered pairs of possible positions. We gave two edges
+(one forward and one backward) for each pair of adjacent positions. We set the capacities of
 all these edges to 1. We then added a source node and attached an edge with capacity
-$\infty$\ to each of the vertices next to the middle line. The idea behind this was
-that the enemy cound be coming from any position next to the middle line, so that's
-where we would start.
+$\infty$\ to each of the vertices next to the middle line \footnote{Please see the \textit{FlowNetwork} object.}.\
 
 
-Next we needed to find the bottleneck position with the most pacdots behind it in a particular game instance.
+
+After several small modifications to
+Ford-Fulkerson and A* we were able
+to find the bottleneck position and successfully find a path to its location.
+However it became apparent that not all bottleneck locations were created equal.
+That is, bottlenecks whose relative positions that were far away from the red-blue
+border, were not useful to guard.\
+
+Therefore we needed to find the bottleneck position with the most pacdots behind it in a particular game instance.
 For each pacDot, we did the following:
 \begin{enumerate}
 	\item Find the max flow from the source to the pacDot, and the path through the maze that's returned by that max flow.
@@ -128,52 +137,44 @@ For each pacDot, we did the following:
 \end{enumerate}
 We then end up with a list of all of the bottlenecks for all of the pacDots.
 We find the most commonly recurring bottleneck position, and that's the one we decide to go to.
-We point our defense agent to that spot and tell him to stay there as long as possible\
-
-\subsection{Agent Evaluation}
-After several small modifications to Ford-Fulkerson and A* we were able
-to find the bottleneck position and successfully find a path to its location.
-However it became apparent that not all bottleneck locations were created equal.
-That is, bottlenecks whose relative positions that were far away from the red-blue
-border, were not useful to guard. If the bottleneck was far from the border, then
-the defensive agent would essentially be guarding nothing or a very small amount of pellets.
-Therefore we needed to find bottleneck positions that could protect a majority of
-the food pellets. This did end up working very well, though, because the night we first
-submitted this defense agent our ranking jumped to \#8, despite submitting a
-less-than-stellar offensive agent\
+We point our defense agent to that spot and tell him to stay there as long as possible.
+\footnote{Please see the \textit{findBottleneckWithMostPacdots(self, gameState)} method on the \textit{DummyAgent} object, which calls
+the \textit{FindBottlenecks(self, source, target)} method on the \textit{FlowNetwork} object.}
 
 \section{Final Tweaks and Manual Override}
 
-After implementing these two ideas, our agent was running well, but there were a couple of cases where our agents
-were not performing well. We decided that, instead of trying to further generalize the Q learning agents,
-it would be more practical in the amount of time that we had to manually make the pacman avoid those cases.
+After implementing a max flow defensive agent and correctly modeling the map as a flow network,
+our agent was performing well and placing in $8^{th}$ in the tournaments.
+Our focus shifted away from the Q-learing agent and it seemed more practical in the amount of time remaining,
+to manually make the pacman avoid negative cases.
 
 \subsection{Eating Pacmen}
-Neither of our agents netually ever decided to eat pacmen. We decided to program this in manually, so now here's what happens:
-For either agent, if that agent is currently a ghost and sees a pacman close by, it considers whether to attack it.
-It decides whether it should attack it based on the A* distance from that pacman and whether we're an off number of steps away.
-We figured out that if a pacman was an even number of steps away from us, it was much easier for them to avoid us, so we would
-ignore the pacman and continue what we previously wanted to do. For the defense agent, it also made sure that the distance between
-the agent and the bottleneck it's protecting is less than the distance between the pacman and the bottleneck. This ensures that
-the defense agent is always protecting the bottleneck well but still goes out and attacks pacmen, and also ensured that after
-the offensive agent died, it would do a little bit of defensive work before going back on offense.
-
-We found this strategy to help quite a bit, especially against the baseline team, because it kept their offensive agent from
-getting too far into our territory most of the time.
+Neither of our agents were ever told to eat pacmen, and this was a poor strategy.
+We programmed a procedure for both agents, to decide whether it should attack an enemy based on the A* distance from that enemy.
+We noticed on offense, if an enemy was an even number of steps away from our agent, it was easy for our agent to avoid the
+enemy. For the defense agent, we made sure that the distance between
+the agent and the bottleneck is less than the distance between the enemy and the bottleneck.
+This allowed the agent to guard the bottleneck while still being able to attack enemies.
 
 \subsection{Avoiding ghosts}
+While our Q learning agent had figured out that it should avoid ghosts by itself, it did not avoid ghosts reliably.
+We integrated a parameter into out A* search algorithm that gave a very high weight to
+all positions with enemy ghosts in them. Therefore the offensive agent would avoid enemy ghosts if possible. \
 
-While our Q learning agent had figured out that it should avoid ghosts by itself, it did not avoid ghosts reliably. It also often
-trapped itself into corners where the ghost would easily kill it.
+The offensive agent also trapped itself into corners where the ghost would easily kill it.
+We used network flow again to determine if a ghost was nearby.
+We checked all nearby pacdots for one that has a maximum flow greater than 1 and therefore
+there is more than one path, which created less opportunities to become trapped.
+\footnote{Please see the \textit{aStarSearch(self, startPosition, gameState, goalPositions, attackPacmen=True)} method
+on the \textit{DummyAgent}.}
 
-In order to avoid ghosts reliably, we integrated a parameter into out A* search algorithm that gave a very high weight to
-all positions with ghosts in them and all positions within 2 squares of that position. This made sure that the pacman would try
-to go on another route if it could find a route that avoided ghosts, and if it couldn't, then it just went on the fastest route,
-hoping that the ghost moves out of its way.
 
-In order to avoid trapping the pacman into corners, we used network flow again. If we knew a ghost was nearby, the pacman knows
-it's being chased, and decides to check all nearby pacdots for one that has a maximum flow greater than 1. The idea is that if the
-flow is greater than 1, there is more than one path to and from that pacdot, and so the pacman is less likely to get trapped. This\
-ended up working really well and our pacman started consistently getting all of the pacdots that weren't trapped in corners very quickly.
+\section{Conclusions}
+Although we set out to create an overall offensive/defensive agent, separating
+offensive and defensive concerns proved to be a valuable strategy. We realized that
+narrowing the problem down into smaller subproblems allowed us to focus and perfect
+one strategy independent of the other. The results showed that this approach is very
+useful when attempting to solve and model large, dynamic environments such as Capture the Flag.
+
 
 \end{document}
