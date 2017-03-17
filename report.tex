@@ -1,5 +1,5 @@
 \documentclass[11pt]{article}
-\usepackage{fullpage,amsthm,amsfonts,amssymb,epsfig,amsmath,times,amsthm,graphicx}
+\usepackage{fullpage,amsthm,amsfonts,amssymb,epsfig,amsmath,times,amsthm,graphicx,wrapfig}
 
 
 \begin{document}
@@ -80,22 +80,100 @@ ghosts, and therefore chose actions to run away! \
 This was a really cool and interesting result of feature learning. It is a great example of
 choosing correct features that results in positive behavior.
 
+% I don't know why but this has to be up here otherwise it goes to the bottom
+\begin{wrapfigure}{L}{0.5\textwidth}
+\centering
+\includegraphics[width=0.5\textwidth]{report_fig1.png}
+\caption{\label{fig:1}Map Bottleneck}
+\end{wrapfigure}
 \section{Max Flow Defense}
 
+\subsection{Fundamental Problem and Obstacles}
+With a decent offensive q-learning agent, it seemed natural to implement
+a dedicated defensive agent. We needed to improve on the baseline random
+action reflex agent, so we considered features that could possibly benefit
+the defensive cause.By observation we noticed a unique bottleneck characteristic of
+pacman levels (see teal Ghost in Figure 1). Most levels had a spot where, the ghost
+could stay and completely block the enemy pacman from winning.
+If we could teach our agent how to find the natural bottleneck position, then that would
+prevent offense from consuming more pellets.
+Therefore, our next goal became to model the game level in such a way that
+allowed us to find this position given any pacman map layout.
+
+\subsection{Model of the Problem}
 
 
+We then chose to model the map as a network flow graph, and use Ford-Fulkerson
+to determine the maximum flow in the graph. We constructed a framework that could
+convert the map we're given into a flow network, where the vertices are the possible
+non-wall positions and the edges are ordered pairs of possible positions, with two edges
+(one forward and one backward) for each pair of adjacent positions. We the capacities of
+all these edges to 1. We then added a source node and attached an edge with capacity
+$\infty$\ to each of the vertices next to the middle line. The idea behind this was
+that the enemy cound be coming from any position next to the middle line, so that's
+where we would start.
 
 
+Next we needed to find the bottleneck position with the most pacdots behind it in a particular game instance.
+For each pacDot, we did the following:
+\begin{enumerate}
+	\item Find the max flow from the source to the pacDot, and the path through the maze that's returned by that max flow.
+	      This flow will block any paths from the source to the given dot
+	\item With the max flow still in place, for each vertex in the returned path, do the following:
+	\begin{enumerate}
+		\item Try to find an augmenting path through the flow using a modified version of A* from the source to the given vertex
+		\item If a path exists, that means there's more than one way to get to this vertex, and we continue.\\
+		      Otherwise, the vertex is being blocked by the max flow, and there is only one way to get to that vertex. Store this vertex.
+	\end{enumerate}
+\end{enumerate}
+We then end up with a list of all of the bottlenecks for all of the pacDots.
+We find the most commonly recurring bottleneck position, and that's the one we decide to go to.
+We point our defense agent to that spot and tell him to stay there as long as possible\
 
+\subsection{Agent Evaluation}
+After several small modifications to Ford-Fulkerson and A* we were able
+to find the bottleneck position and successfully find a path to its location.
+However it became apparent that not all bottleneck locations were created equal.
+That is, bottlenecks whose relative positions that were far away from the red-blue
+border, were not useful to guard. If the bottleneck was far from the border, then
+the defensive agent would essentially be guarding nothing or a very small amount of pellets.
+Therefore we needed to find bottleneck positions that could protect a majority of
+the food pellets. This did end up working very well, though, because the night we first
+submitted this defense agent our ranking jumped to \#8, despite submitting a
+less-than-stellar offensive agent\
 
+\section{Final Tweaks and Manual Override}
 
+After implementing these two ideas, our agent was running well, but there were a couple of cases where our agents
+were not performing well. We decided that, instead of trying to further generalize the Q learning agents,
+it would be more practical in the amount of time that we had to manually make the pacman avoid those cases.
 
+\subsection{Eating Pacmen}
+Neither of our agents netually ever decided to eat pacmen. We decided to program this in manually, so now here's what happens:
+For either agent, if that agent is currently a ghost and sees a pacman close by, it considers whether to attack it.
+It decides whether it should attack it based on the A* distance from that pacman and whether we're an off number of steps away.
+We figured out that if a pacman was an even number of steps away from us, it was much easier for them to avoid us, so we would
+ignore the pacman and continue what we previously wanted to do. For the defense agent, it also made sure that the distance between
+the agent and the bottleneck it's protecting is less than the distance between the pacman and the bottleneck. This ensures that
+the defense agent is always protecting the bottleneck well but still goes out and attacks pacmen, and also ensured that after
+the offensive agent died, it would do a little bit of defensive work before going back on offense.
 
+We found this strategy to help quite a bit, especially against the baseline team, because it kept their offensive agent from
+getting too far into our territory most of the time.
 
+\subsection{Avoiding ghosts}
 
+While our Q learning agent had figured out that it should avoid ghosts by itself, it did not avoid ghosts reliably. It also often
+trapped itself into corners where the ghost would easily kill it.
 
+In order to avoid ghosts reliably, we integrated a parameter into out A* search algorithm that gave a very high weight to
+all positions with ghosts in them and all positions within 2 squares of that position. This made sure that the pacman would try
+to go on another route if it could find a route that avoided ghosts, and if it couldn't, then it just went on the fastest route,
+hoping that the ghost moves out of its way.
 
-
-
+In order to avoid trapping the pacman into corners, we used network flow again. If we knew a ghost was nearby, the pacman knows
+it's being chased, and decides to check all nearby pacdots for one that has a maximum flow greater than 1. The idea is that if the
+flow is greater than 1, there is more than one path to and from that pacdot, and so the pacman is less likely to get trapped. This\
+ended up working really well and our pacman started consistently getting all of the pacdots that weren't trapped in corners very quickly.
 
 \end{document}
