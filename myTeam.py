@@ -6,14 +6,12 @@
 # John DeNero (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
 # For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
 from __future__ import division
-from captureAgents import CaptureAgent
-import random, time, util
-from game import Directions, Actions
-import game
-import sys
+import random
+import util
 import copy
 import collections
-# sys.setrecursionlimit(sys.getrecursionlimit() * 10)
+from captureAgents import CaptureAgent
+from game import Directions, Actions
 
 
 #################
@@ -60,8 +58,6 @@ class DummyAgent(CaptureAgent):
 
     # ### The below code is going to be called by the game ### #
 
-	# **kwargs ~ alows you to pass KEYWORD argurments
-
     def __init__(self, *args, **kwargs):
         '''
         Initialize agent
@@ -72,19 +68,15 @@ class DummyAgent(CaptureAgent):
         self.weights = util.Counter()
         self.numTraining = kwargs.pop('numTraining', 0)
         self.training_exploration_rate = .5
-        self.testing_exploration_rate = .05
+        self.testing_exploration_rate = 0
 
         self.learning_rate = .2
-        self.exploration_rate = .8
         self.discount_factor = .99
 
         # Manually put in weights here
-		# i think numTraining == 0  refers to an actual game, i.e. when we stop training
+        print 'v2.0'
         if self.numTraining == 0:
-            self.weights.update({'score': 0.6809099995971538,
-			'num_defending_food': 23.6565508664964, 'opponent_0_distance': 2.0699359632136902,
-			'num_food': 23.633853866509785, 'bias': 115.8643705168336,
-			'opponent_2_distance': 1.9917190914963816, 'closest_food_aStar': -1.9670769570603142})
+            self.weights.update({'score': 0.6809099995971538, 'num_defending_food': 23.6565508664964, 'opponent_0_distance': 2.0699359632136902, 'num_food': 23.633853866509785, 'bias': 115.8643705168336, 'opponent_2_distance': 1.9917190914963816, 'closest_food_aStar': -1.9670769570603142})
 
         CaptureAgent.__init__(self, *args, **kwargs)
 
@@ -127,17 +119,13 @@ class DummyAgent(CaptureAgent):
         Picks among actions randomly.
         """
 
-        # Observe the current state, and update our weights based on the current
-		# state and any reward we might get
+        # Observe the current state, and update our weights based on the current state and any reward we might get
         #
 
         previousState = self.getPreviousObservation()
         previousAction = self.getPreviousAction()
         reward = self.getReward(gameState)
         self.update(previousState, previousAction, gameState, reward)
-
-
-		# what is the pupose of this random ???
 
         if random.random() < self.exploration_rate:
             action = random.choice(gameState.getLegalActions(self.index))
@@ -172,7 +160,7 @@ class DummyAgent(CaptureAgent):
 
     def update(self, gameState, action, nextState, reward):
         """
-        Updates our values. Called on chooseAction()
+        Updates our values. Called on getAction
         """
 
         # Don't do anything on first iteration
@@ -182,7 +170,6 @@ class DummyAgent(CaptureAgent):
         correction = reward + self.discount_factor * self.getValue(nextState) - self.getQValue(gameState, action)
         features = self.getFeatures(gameState, action)
 
-		# updating the weights using gradient decent
         for weight_name in features:
             self.weights[weight_name] += self.learning_rate * correction * features[weight_name]
 
@@ -193,12 +180,11 @@ class DummyAgent(CaptureAgent):
 
         features = self.getFeatures(gameState, action)
 
-
         return sum(features[feature] * self.weights[feature] for feature in features)
 
     def getValue(self, gameState):
         """
-        Returns the Q value we're giving the current state.
+        Returns the value we're giving the current state.
         """
         return max([self.getQValue(gameState, action) for action in gameState.getLegalActions(self.index)] or [0])
 
@@ -220,29 +206,71 @@ class DummyAgent(CaptureAgent):
         # TODO: Incorporate "action" into these features (as right now they only take into account the state)
         # TODO: Add more features / figure out whihc features are important
         features = util.Counter()
+        position = gameState.getAgentPosition(self.index)
         nextGameState = gameState.generateSuccessor(self.index, action)
         nextPosition = nextGameState.getAgentPosition(self.index)
         food = self.getFood(gameState)
+        capsules = self.getCapsules(gameState)
 
         walls = gameState.getWalls()
+        wallsList = walls.asList()
         mazeSize = walls.width * walls.height
+
+        enemyIndices = self.getOpponents(gameState)
+
+        attackablePacmen = [gameState.getAgentPosition(i) for i in enemyIndices if self.isPacman(gameState, i) and self.isGhost(gameState, self.index) and not self.isScared(gameState, self.index)]
+        scaredGhostLocations = [gameState.getAgentPosition(i) for i in self.getOpponents(gameState) if self.isScared(gameState, i) and self.isGhost(gameState, i)]
+        goalPositions = set(food.asList() + attackablePacmen + capsules + scaredGhostLocations)
+
+        enemyGhostLocations = [gameState.getAgentPosition(i) for i in enemyIndices if self.isGhost(gameState, i) and not self.isScared(gameState, i)]
+        enemyGhostLocations.extend(self.validSurroundingPositionsTo(gameState, enemyGhostLocations, wallsList))
+        enemyGhostLocations.extend(self.validSurroundingPositionsTo(gameState, enemyGhostLocations, wallsList))
 
         features['num_food'] = food.count() / self.initial_food
         features['num_defending_food'] = self.getFoodYouAreDefending(gameState).count() / self.initial_defending_food
         features['bias'] = 1.0
         # features['score'] = self.getScore(gameState)
 
-        # If it can't find the path, returns mazeSize/mazeSize
-        aStar_food_path = self.aStarSearch(nextPosition, nextGameState, food.asList())
+        avoidPositions = set(enemyGhostLocations)
+
+        # If we're being chased, avoid positions that we can't get out of easily
+        if self.isBeingChased(gameState):
+            network, source = self.getFlowNetwork(gameState, startingPositions=self.getMiddlePositions(gameState), defenseOnly=False)
+            closePositions = [goalPosition for goalPosition in goalPositions if util.manhattanDistance(position, goalPosition) <= 5]
+
+            # Split into groups for faster movement, so we're not finding the max flow of every dot
+            groups = set()
+            while closePositions:
+                changed = True
+                newGroup = [closePositions.pop()]
+                while changed:
+                    changed = False
+                    for groupPosition in newGroup:
+                        for closePosition in closePositions:
+                            manhattanDistance = util.manhattanDistance(groupPosition, closePosition)
+                            if (manhattanDistance <= 1 or  # They're right next to each other
+                               (manhattanDistance == 2 and (groupPosition[0] + closePosition[0] // 2, groupPosition[1] + closePosition[1] // 2) not in wallsList)):  # They're across from each other, or katty corner. This doesn't work correctly when they're on the other side of a wall from each other, which rarely if ever happens
+                                changed = True
+                                closePositions.remove(closePosition)
+                                newGroup.append(closePosition)
+                groups.add(tuple(newGroup))
+
+            # Only find max flow of dots 5 or less away from us. If max flow is 1 or less, don't go there
+            for group in groups:
+                if len(self.aStarSearch(position, gameState, [group[0]])) <= 5:
+                    maxFlow = network.MaxFlow(source, group[0])[0]
+                    network.reset()
+                    if maxFlow <= 1:
+                        maxFlowFromMe = network.MaxFlow(position, group[0])[0]
+                        network.reset()
+                        if maxFlowFromMe <= 1:
+                            avoidPositions.update(group)
+
+        avoidPositions = list(enemyGhostLocations)
+
+        aStar_food_path = self.aStarSearch(nextPosition, nextGameState, list(goalPositions), avoidPositions=list(enemyGhostLocations))
+
         features['closest_food_aStar'] = (len(aStar_food_path) if aStar_food_path is not None else mazeSize) / mazeSize
-
-
-
-		# Distance away from opponents
-        # agentDistances = gameState.getAgentDistances() <== This is not used yet
-
-        # for agent_num in self.getOpponents(gameState):
-        #     features['opponent_' + str(agent_num) + '_distance'] = agentDistances[agent_num] / mazeSize
 
         return features
 
@@ -261,6 +289,13 @@ class DummyAgent(CaptureAgent):
             return False
         return not (gameState.isOnRedTeam(index) ^ (position[0] < gameState.getWalls().width / 2))
 
+    def isScared(self, gameState, index):
+        """
+        Says whether or not the given agent is scared
+        """
+        isScared = bool(gameState.data.agentStates[index].scaredTimer)
+        return isScared
+
     def isPacman(self, gameState, index):
         """
         Returns true ONLY if we can see the agent and it's definitely a pacman
@@ -270,29 +305,53 @@ class DummyAgent(CaptureAgent):
             return False
         return not (gameState.isOnRedTeam(index) ^ (position[0] >= gameState.getWalls().width / 2))
 
+    def isBeingChased(self, gameState):
+        """
+        If we are pacman and the enemy ghost is within aStar distance less than 5
+        """
+        if (not self.isPacman(gameState, self.index)) or any(self.isScared(gameState, index) for index in self.getOpponents(gameState)):
+            return False
+        else:
+            myPosition = gameState.getAgentPosition(self.index)
+
+            agentLocations = [gameState.getAgentPosition(i) for i in self.getOpponents(gameState)]
+            agentDistances = [len(self.aStarSearch(myPosition, gameState, [agentLocation])) for agentLocation in agentLocations if agentLocation is not None]
+            return min(agentDistances or [float('inf')]) <= 7
+
+    def validSurroundingPositionsTo(self, gameState, positions, walls):
+        actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST, Directions.STOP]
+        actionVectors = [Actions.directionToVector(action) for action in actions]
+        # Change action vectors to integers so they work correctly with indexing
+        actionVectors = [tuple(int(number) for number in vector) for vector in actionVectors]
+
+        possibleNextPositions = [((position[0] + vector[0], position[1] + vector[1])) for vector in actionVectors for position in positions]
+        validNextPositions = [position for position in possibleNextPositions if position not in walls]
+
+        return validNextPositions
+
     # ## A Star Search ## #
 
-    def aStarSearch(self, startPosition, gameState, goalPositions, attackPacmen=True):
+    def aStarSearch(self, startPosition, gameState, goalPositions, avoidPositions=[], returnPosition=False):
         """
         Finds the distance between the agent with the given index and its nearest goalPosition
         """
+        walls = gameState.getWalls()
+        width = walls.width
+        height = walls.height
+        walls = walls.asList()
 
-        walls = gameState.getWalls().asList()
         actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
         actionVectors = [Actions.directionToVector(action) for action in actions]
-
-        enemyIndices = self.getOpponents(gameState)
-        enemyLocations = [gameState.getAgentPosition(i) for i in enemyIndices if self.isGhost(gameState, i) and self.isPacman(gameState, self.index)]
-
-        if attackPacmen:
-            attackablePacmen = [gameState.getAgentPosition(i) for i in enemyIndices if self.isPacman(gameState, i) and self.isGhost(gameState, self.index)]
-            goalPositions.extend(attackablePacmen)
+        # Change action vectors to integers so they work correctly with indexing
+        actionVectors = [tuple(int(number) for number in vector) for vector in actionVectors]
 
         # Values are stored a 3-tuples, (Position, Path, TotalCost)
 
         currentPosition, currentPath, currentTotal = startPosition, [], 0
         # Priority queue uses the maze distance between the entered point and its closest goal position to decide which comes first
-        queue = util.PriorityQueueWithFunction(lambda entry: entry[2] + (float('inf') if entry[0] in enemyLocations else 0) + (min(util.manhattanDistance(entry[0], endPosition) for endPosition in goalPositions)))
+        queue = util.PriorityQueueWithFunction(lambda entry: entry[2] +   # Total cost so far
+                                               width * height if entry[0] in avoidPositions else 0 +  # Avoid enemy locations like the plague
+                                               min(util.manhattanDistance(entry[0], endPosition) for endPosition in goalPositions))
 
         # Keeps track of visited positions
         visited = set([currentPosition])
@@ -313,18 +372,28 @@ class DummyAgent(CaptureAgent):
             else:
                 currentPosition, currentPath, currentTotal = queue.pop()
 
-        return currentPath
+        if returnPosition:
+            return currentPath, currentPosition
+        else:
+            return currentPath
 
     def positionIsHome(self, position, gameWidth):
-        return not (self.red ^ (position[0] < gameWidth / 2))
+        isHome = not (self.red ^ (position[0] < gameWidth / 2))
+        return isHome
 
-    def findBottleneckWithMostPacdots(self, gameState):
-        endingPositions = self.getFoodYouAreDefending(gameState).asList()
+    def getFlowNetwork(self, gameState, startingPositions=None, endingPositions=None, defenseOnly=True):
+        '''
+        Returns the flow network.
+        If starting positions are provided, also returns the source node
+        If ending positions are provided, also returns the sink node
+        Note: Always returns tuple
+        '''
+        source = (-1, -1)
+        sink = (-2, -2)
+
         walls = gameState.getWalls()
         wallPositions = walls.asList()
-        possiblePositions = [(x, y) for x in range(walls.width) for y in range(walls.height) if (x, y) not in wallPositions and self.positionIsHome((x, y), walls.width)]
-        startX = walls.width / 2 - 1 if self.red else walls.width / 2
-        startingPositions = [position for position in possiblePositions if position[0] == startX]
+        possiblePositions = [(x, y) for x in range(walls.width) for y in range(walls.height) if (x, y) not in wallPositions and (not defenseOnly or self.positionIsHome((x, y), walls.width))]
 
         actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
         actionVectors = [Actions.directionToVector(action) for action in actions]
@@ -332,7 +401,6 @@ class DummyAgent(CaptureAgent):
         actionVectors = [tuple(int(number) for number in vector) for vector in actionVectors]
 
         # Make source and sink
-        source = (-1, -1)
 
         network = FlowNetwork()
 
@@ -340,6 +408,7 @@ class DummyAgent(CaptureAgent):
         for position in possiblePositions:
             network.AddVertex(position)
         network.AddVertex(source)
+        network.AddVertex(sink)
 
         # Add normal edges
         edges = EdgeDict()
@@ -350,11 +419,29 @@ class DummyAgent(CaptureAgent):
                     edges[(position, newPosition)] = 1
 
         # Add edges attached to source
-        for position in startingPositions:
+        for position in startingPositions or []:
             edges[(source, position)] = float('inf')
+
+        for position in endingPositions or []:
+            edges[(position, sink)] = float('inf')
 
         for edge in edges:
             network.AddEdge(edge[0], edge[1], edges[edge])
+
+        retval = (network,)
+
+        if startingPositions is not None:
+            retval = retval + (source,)
+        if endingPositions is not None:
+            retval = tuple(retval) + (sink,)
+
+        return retval
+
+    def findBottleneckWithMostPacdots(self, gameState):
+
+        startingPositions = self.getMiddlePositions(gameState)
+        endingPositions = self.getFoodYouAreDefending(gameState).asList()
+        network, source = self.getFlowNetwork(gameState, startingPositions=startingPositions)
 
         bottleneckCounter = collections.Counter()
 
@@ -364,24 +451,23 @@ class DummyAgent(CaptureAgent):
                 bottleneckCounter[bottlenecks[0]] += 1
             network.reset()
 
-        maxBottleneck = max(bottleneckCounter, key=lambda vertex: bottleneckCounter[vertex])
+        maxBottleneck = max(bottleneckCounter or [None], key=lambda vertex: bottleneckCounter[vertex])
         return maxBottleneck, bottleneckCounter[maxBottleneck]
 
+    def getMiddlePositions(self, gameState):
 
-
-
-
-
-
-
-
-
-
-
-
+        # Find the positions closest to the moiddle line so we can start there
+        walls = gameState.getWalls()
+        wallPositions = walls.asList()
+        possiblePositions = [(x, y) for x in range(walls.width) for y in range(walls.height) if (x, y) not in wallPositions and self.positionIsHome((x, y), walls.width)]
+        startX = walls.width / 2 - 1 if self.red else walls.width / 2
+        startingPositions = [position for position in possiblePositions if position[0] == startX]
+        return startingPositions
 
 
 # ### Implementation of Ford-Fulkerson algorithm, taken from https://github.com/bigbighd604/Python/blob/master/graph/Ford-Fulkerson.py and heavily modified
+
+
 class Edge(object):
     def __init__(self, u, v, w):
         self.source = u
@@ -454,7 +540,7 @@ class FlowNetwork(object):
             for edge, residual in path:
                 # Save the flows so we don't mess up the operation between path findings
                 if self.FindPath(source, edge.target) is None:
-                    bottlenecks.append(edge.target)
+                    bottlenecks.append(edge.source)
                     break
         assert len(bottlenecks) == maxflow
         return bottlenecks
@@ -463,7 +549,7 @@ class FlowNetwork(object):
         # This keeps track of paths that go to our destination
         leadingEdges = {}
         path = self.FindPath(source, target)
-        while path is not None:
+        while path:
             leadingEdges[path[0]] = path
             flow = min(res for edge, res in path)
             for edge, res in path:
@@ -471,7 +557,7 @@ class FlowNetwork(object):
                 self.flow[edge.redge] -= flow
 
             path = self.FindPath(source, target)
-        maxflow = sum(self.flow[edge] for edge in self.GetEdges(source))
+        maxflow = sum([self.flow[edge] for edge in self.GetEdges(source)])
         return maxflow, leadingEdges
 
     def reset(self):
@@ -505,11 +591,34 @@ class DefenseAgent(DummyAgent):
     def __init__(self, *args, **kwargs):
         self.defenseMode = False
         self.GoToSpot = None
-        CaptureAgent.__init__(self, *args, **kwargs)
+        DummyAgent.__init__(self, *args, **kwargs)
 
     def registerInitialState(self, gameState):
 
-        CaptureAgent.registerInitialState(self, gameState)
+        DummyAgent.registerInitialState(self, gameState)
+        self.checkForBottleneck(gameState)
+
+    def chooseAction(self, gameState):
+        # If we were scared and aren't anymore, re-check for bottleneck
+        if self.getPreviousObservation():
+            if self.isScared(self.getPreviousObservation(), self.index) and not self.isScared(gameState, self.index):
+                self.checkForBottleneck(gameState)
+
+        if self.defenseMode and not self.isScared(gameState, self.index):
+            position = gameState.getAgentPosition(self.index)
+            opponentPositions = [gameState.getAgentPosition(i) for i in self.getOpponents(gameState) if self.isPacman(gameState, i)]
+            if opponentPositions:
+                pathToOpponents = self.aStarSearch(position, gameState, opponentPositions)
+                if (len(pathToOpponents) % 2 == 1 and not  # We want the path length to be odd
+                   (len(self.aStarSearch(self.GoToSpot, gameState, [position])) < len(self.aStarSearch(self.GoToSpot, gameState, opponentPositions)))):  # We want to be closer to our spot than they are
+                    return pathToOpponents[0]
+
+            pathToSpot = self.aStarSearch(position, gameState, opponentPositions or [self.GoToSpot]) or [Directions.STOP]
+            # Paths an odd distance away have a better chance of working
+            return pathToSpot[0]
+        return DummyAgent.chooseAction(self, gameState)
+
+    def checkForBottleneck(self, gameState):
         bottleneckPosition, numDots = self.findBottleneckWithMostPacdots(gameState)
         if numDots >= 2:
             self.defenseMode = True
@@ -517,10 +626,3 @@ class DefenseAgent(DummyAgent):
         else:
             self.defenseMode = False
             self.goToSpot = None
-
-    def chooseAction(self, gameState):
-        if self.defenseMode:
-            pathToSpot = self.aStarSearch(gameState.getAgentPosition(self.index), gameState, [self.GoToSpot]) or [Directions.STOP]
-            return pathToSpot[0]
-        else:
-            return CaptureAgent.chooseAction(self, gameState)
