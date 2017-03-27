@@ -1,17 +1,13 @@
-# myTeam.py
-# ---------
-# Licensing Information: Please do not distribute or publish solutions to this
-# project. You are free to use and extend these projects for educational
-# purposes. The Pacman AI projects were developed at UC Berkeley, primarily by
-# John DeNero (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
-# For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
 from __future__ import division
 import random
 import util
 import copy
 import collections
+import math
+import tensorflow as tf
 from captureAgents import CaptureAgent
 from game import Directions, Actions
+from numpy import array, float32
 
 
 #################
@@ -44,9 +40,18 @@ def createTeam(firstIndex, secondIndex, isRed,
 # Agents #
 ##########
 
+winning_weights = [array([[ 3.17576432,  0.22922029, -3.35294485, -1.10840964],
+       [ 1.04950893,  1.52935839, -2.19146419, -0.40707612],
+       [ 2.30970669,  1.17531323, -3.27446604, -1.43581951],
+       [-0.38588887, -1.93801641,  0.51416117,  0.59434551]], dtype=float32), array([[  2.26813102e+00,   2.37682555e-03,  -2.67385650e+00,
+         -9.63723719e-01]], dtype=float32), array([[ 0.74997079,  0.61594456,  0.54025191,  0.8074066 ],
+       [-0.91277975,  1.72260773, -1.28915024,  0.57378536],
+       [ 1.98607254, -1.43602443,  1.8726244 , -2.08518648],
+       [ 0.2687358 , -0.43212101,  0.93886507, -0.121199  ]], dtype=float32), array([[-1.6464802 ,  1.20602429, -0.77098143,  1.63822222]], dtype=float32), array([[-11.24650192],
+       [ 12.57112789],
+       [-13.45398903],
+       [ 10.75681114]], dtype=float32), array([[ 12.52836514]], dtype=float32)]
 
-weights = util.Counter()
-weights['closest_food_aStar'] = -1
 
 
 class DummyAgent(CaptureAgent):
@@ -65,18 +70,47 @@ class DummyAgent(CaptureAgent):
 
         # Initialize all weights
         self.gameNumber = 0
-        self.weights = util.Counter()
         self.numTraining = kwargs.pop('numTraining', 0)
-        self.training_exploration_rate = .5
+        self.training_exploration_rate = .7
         self.testing_exploration_rate = 0
 
-        self.learning_rate = .2
-        self.discount_factor = .99
+        self.discount_factor = .95
 
         # Manually put in weights here
-        print 'v2.0'
-        if self.numTraining == 0:
-            self.weights.update({'score': 0.6809099995971538, 'num_defending_food': 23.6565508664964, 'opponent_0_distance': 2.0699359632136902, 'num_food': 23.633853866509785, 'bias': 115.8643705168336, 'opponent_2_distance': 1.9917190914963816, 'closest_food_aStar': -1.9670769570603142})
+
+        self.inputs = tf.placeholder(shape=[1,4], dtype=tf.float32)
+
+        self.weights1 = tf.Variable(tf.truncated_normal([4,4]))
+
+        self.bias1 = tf.Variable(tf.zeros(shape=[1,4]))
+
+        self.weights2 = tf.Variable(tf.truncated_normal([4,4]))
+
+        self.bias2 = tf.Variable(tf.zeros(shape=[1, 4]))
+
+        self.weights3 = tf.Variable(tf.truncated_normal([4,1]))
+
+        self.bias3 = tf.Variable(tf.zeros([1,1]))
+
+        self.layer1 = tf.tanh(tf.matmul(self.inputs, self.weights1) + self.bias1)
+
+        self.layer2 = tf.tanh(tf.matmul(self.layer1, self.weights2) + self.bias2)
+
+        self.layer3 = tf.nn.relu(tf.matmul(self.layer2, self.weights3) + self.bias3)
+
+        self.output_layer = self.layer3
+
+        self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.1)
+
+        self.nextQ = tf.placeholder(shape=[1,1], dtype=tf.float32)
+
+        self.loss = tf.reduce_sum(tf.square((self.nextQ - self.output_layer)))
+
+        self.trainer = self.optimizer.minimize(self.loss)
+
+        self.sess = tf.Session()
+
+        self.sess.run(tf.global_variables_initializer())
 
         CaptureAgent.__init__(self, *args, **kwargs)
 
@@ -109,12 +143,18 @@ class DummyAgent(CaptureAgent):
 
         self.exploration_rate = self.training_exploration_rate if self.isTraining() else self.testing_exploration_rate
 
-        # Copy global weights to local once we stop training
-        # if self.gameNumber == self.numTraining + 1:
-        #     self.weights = weights
-        self.weights['closest_food_aStar'] = -1
+
+        if winning_weights is not None:
+            weights1, bias1, weights2, bias2, weights3, bias3 = winning_weights
+            self.sess.run([self.weights1.assign(weights1),
+                           self.bias1.assign(bias1),
+                           self.weights2.assign(weights2),
+                           self.bias2.assign(bias2),
+                           self.weights3.assign(weights3),
+                           self.bias3.assign(bias3)])
 
     def chooseAction(self, gameState):
+        global winning_weights
         """
         Picks among actions randomly.
         """
@@ -135,9 +175,11 @@ class DummyAgent(CaptureAgent):
         if self.isTraining():
             print 'Features', self.getFeatures(gameState, action)
             print
-            print 'Weights', self.weights
+            print repr(self.weights())
             print
             print
+
+        winning_weights = self.weights()
 
         return action
 
@@ -150,13 +192,23 @@ class DummyAgent(CaptureAgent):
         reward = 0
         previousState = self.getPreviousObservation()
 
-        # Find out if we got a pac dot. If we did, add 10 points.
-        previousFoodNum = self.getFood(previousState).count()
-        foodNum = self.getFood(gameState).count()
 
-        reward += 10 * (previousFoodNum - foodNum)
+
+        # Find out if we got a pac dot. If we did, add 10 points.
+        previousFood = self.getFood(previousState).asList()
+        myPosition = gameState.getAgentPosition(self.index)
+        currentFood = self.getFood(gameState).asList()
+
+        if myPosition in previousFood and myPosition not in currentFood:
+            reward += 10
 
         return reward
+
+    def weights(self):
+        return (self.sess.run([self.weights1, self.bias1, self.weights2, self.bias2, self.weights3, self.bias3]))
+
+
+# Here is where we implement the 3-layer network: 2 with sigmoid activations, and 1 straight linear with no activation
 
     def update(self, gameState, action, nextState, reward):
         """
@@ -167,11 +219,13 @@ class DummyAgent(CaptureAgent):
         if self.getPreviousObservation() is None:
             return
 
+        nextQ = reward + self.discount_factor * self.getValue(nextState)
+
         correction = reward + self.discount_factor * self.getValue(nextState) - self.getQValue(gameState, action)
         features = self.getFeatures(gameState, action)
 
-        for weight_name in features:
-            self.weights[weight_name] += self.learning_rate * correction * features[weight_name]
+        self.sess.run(self.trainer, feed_dict={self.inputs: [features],
+                                                 self.nextQ: nextQ})
 
     def getQValue(self, gameState, action):
         """
@@ -180,7 +234,7 @@ class DummyAgent(CaptureAgent):
 
         features = self.getFeatures(gameState, action)
 
-        return sum(features[feature] * self.weights[feature] for feature in features)
+        return self.sess.run(self.output_layer, feed_dict={self.inputs: [features]})
 
     def getValue(self, gameState):
         """
@@ -205,7 +259,7 @@ class DummyAgent(CaptureAgent):
 
         # TODO: Incorporate "action" into these features (as right now they only take into account the state)
         # TODO: Add more features / figure out whihc features are important
-        features = util.Counter()
+        features = []
         position = gameState.getAgentPosition(self.index)
         nextGameState = gameState.generateSuccessor(self.index, action)
         nextPosition = nextGameState.getAgentPosition(self.index)
@@ -223,12 +277,13 @@ class DummyAgent(CaptureAgent):
         goalPositions = set(food.asList() + attackablePacmen + capsules + scaredGhostLocations)
 
         enemyGhostLocations = [gameState.getAgentPosition(i) for i in enemyIndices if self.isGhost(gameState, i) and not self.isScared(gameState, i)]
-        enemyGhostLocations.extend(self.validSurroundingPositionsTo(gameState, enemyGhostLocations, wallsList))
-        enemyGhostLocations.extend(self.validSurroundingPositionsTo(gameState, enemyGhostLocations, wallsList))
+        # enemyGhostLocations.extend(self.validSurroundingPositionsTo(gameState, enemyGhostLocations, wallsList))
+        # enemyGhostLocations.extend(self.validSurroundingPositionsTo(gameState, enemyGhostLocations, wallsList))
 
-        features['num_food'] = food.count() / self.initial_food
-        features['num_defending_food'] = self.getFoodYouAreDefending(gameState).count() / self.initial_defending_food
-        features['bias'] = 1.0
+        features.append( food.count() / self.initial_food)
+        features.append( self.getFoodYouAreDefending(gameState).count() / self.initial_defending_food)
+        closestGhost = len(self.aStarSearch(nextPosition, nextGameState, list(enemyGhostLocations))) / mazeSize if enemyGhostLocations else 1
+        features.append(closestGhost)
         # features['score'] = self.getScore(gameState)
 
         avoidPositions = set(enemyGhostLocations)
@@ -266,11 +321,9 @@ class DummyAgent(CaptureAgent):
                         if maxFlowFromMe <= 1:
                             avoidPositions.update(group)
 
-        avoidPositions = list(enemyGhostLocations)
+        aStar_food_path = self.aStarSearch(nextPosition, nextGameState, list(goalPositions), avoidPositions=avoidPositions)
 
-        aStar_food_path = self.aStarSearch(nextPosition, nextGameState, list(goalPositions), avoidPositions=list(enemyGhostLocations))
-
-        features['closest_food_aStar'] = (len(aStar_food_path) if aStar_food_path is not None else mazeSize) / mazeSize
+        features.append((len(aStar_food_path) if aStar_food_path is not None else mazeSize) / mazeSize)
 
         return features
 
@@ -295,6 +348,7 @@ class DummyAgent(CaptureAgent):
         """
         isScared = bool(gameState.data.agentStates[index].scaredTimer)
         return isScared
+
 
     def isPacman(self, gameState, index):
         """
@@ -585,6 +639,7 @@ class EdgeDict(dict):
         edgesContainingKey = [edge for edge in self if key in edge]
         adjacentPositions = [[position for position in edge if position != key][0] for edge in edgesContainingKey]
         return adjacentPositions
+
 
 
 class DefenseAgent(DummyAgent):

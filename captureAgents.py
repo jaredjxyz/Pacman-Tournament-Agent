@@ -105,6 +105,7 @@ class CaptureAgent(Agent):
   def final(self, gameState):
     self.observationHistory = []
 
+
   def registerTeam(self, agentsOnTeam):
     """
     Fills the self.agentsOnTeam field with a list of the
