@@ -1,6 +1,6 @@
 ### Introduction
 
-This was the final project for my Artificial Intelligence class at UCSC. Because I had learned some of this beforehand and knew some information in other areas that put me at an advantage, I put a lot of work on into this project. Please see the write-up I did on [my website](http://jaredj.xyz/projects/pacman_tournament_agent/). This project ended up getting the highest win/lose ratio in the class!
+This was the final project for my Artificial Intelligence class at UCSC. Because I had learned some of this beforehand and knew some information in other areas that put me at an advantage, I put a lot of work on into this project. Please see the [write-up on my website](http://jaredj.xyz/projects/pacman_tournament_agent/). This project ended up getting the highest win/lose ratio in the class!
 
 ### Rules of Pacman Capture the Flag
 
