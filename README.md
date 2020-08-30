@@ -2,6 +2,9 @@
 
 This was the final project for my Artificial Intelligence class at UCSC. Because I had learned some of this beforehand and knew some information in other areas that put me at an advantage, I put a lot of work on into this project. Please see the [write-up on my website](https://jaredj.xyz/blog/pacman-tournament-agent/). This project ended up getting the highest win/lose ratio in the class!
 
+### 2020 edit
+I did this as part of a class project. It did well, but 4 years later I would certainly do some things differently. I am keeping this on my Github page because several people found it useful as a reference, but I would recommend you not copy this exactly, for a few reasons (for example, the weights are hard-coded in instead of being loaded in)
+
 ### Rules of Pacman Capture the Flag
 
 **Layout:** The Pacman map is now divided into two halves: blue (right) and red (left). Red agents (which all have even indices) must defend the red food while trying to eat the blue food. When on the red side, a red agent is a ghost. When crossing into enemy territory, the agent becomes a Pacman.
