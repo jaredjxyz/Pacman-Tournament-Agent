@@ -3,7 +3,7 @@
 This was the final project for my Artificial Intelligence class at UCSC. Because I had learned some of this beforehand and knew some information in other areas that put me at an advantage, I put a lot of work on into this project. Please see the [write-up on my website](https://jaredj.xyz/blog/pacman-tournament-agent/). This project ended up getting the highest win/lose ratio in the class!
 
 ### 2020 edit
-I did this as part of a class project. It did well, but 4 years later I would certainly do some things differently. I am keeping this on my Github page because several people found it useful as a reference, but I would recommend you not copy this exactly, for a few reasons (for example, the weights are hard-coded in instead of being loaded in)
+I did this as part of a class project. It did well, but 4 years later I would certainly do some things differently. I am keeping this on my Github page because several people found it useful as a reference, but I would recommend you not copy this exactly, but it might be useful for you to use as guidance. While this technically uses a deep neural network with q-learning, it doesn't actually implement Deepmind's original DQL paper because it lacks a target network and experience replay, which means the weights can go out of control pretty easily.
 
 ### Rules of Pacman Capture the Flag
 
